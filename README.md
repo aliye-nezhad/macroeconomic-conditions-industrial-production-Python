@@ -1,4 +1,4 @@
-# Macroeconomic Regression Workflow Using Python
+# Macroeconomic Conditions and Industrial Production
 
 ## Overview
 
