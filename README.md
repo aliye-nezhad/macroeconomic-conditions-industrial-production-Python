@@ -1,4 +1,4 @@
-# Macroeconomic Conditions and Industrial Production
+# Macroeconomic Conditions and Industrial Production 
 
 ## Overview
 
