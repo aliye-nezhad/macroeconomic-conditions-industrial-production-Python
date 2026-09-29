@@ -1,4 +1,4 @@
-# Monetary and Macroeconomic Conditions: Evidence from Industrial Production
+# Macroeconomic Conditions and Industrial Production
 
 ## Overview
 
