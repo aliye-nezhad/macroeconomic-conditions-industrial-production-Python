@@ -1,40 +1,28 @@
-# Data provenance and contract
+# Data
 
-## Source and input
+The analysis uses three monthly series from the Federal Reserve Bank of St. Louis's FRED database:
 
-The input file `raw/fred_snapshot.csv` is a FRED CSV snapshot supplied for this project audit on 2026-11-11. The original file does not embed a download timestamp, so the exact time at which it was retrieved cannot be independently established from the file alone.
+- `INDPRO`: Industrial Production: Total Index (2017 = 100, seasonally adjusted).
+- `FEDFUNDS`: Effective Federal Funds Rate (percent, not seasonally adjusted).
+- `UNRATE`: Civilian Unemployment Rate (percent, seasonally adjusted).
 
-Series:
-- `INDPRO`: Industrial Production: Total Index.
-- `FEDFUNDS`: Effective Federal Funds Rate.
-- `UNRATE`: Civilian Unemployment Rate.
+The CSV snapshot is stored at `raw/fred_snapshot.csv`. It is a static FRED export provided with the project; the original retrieval timestamp is not embedded in the file. The main replication uses this saved file and does not download updated observations.
 
-The downloaded file has an `observation_date` column and three series columns. The repository preserves this input snapshot unchanged.
+## Sample and missing observations
 
-## Analysis window and missingness
+The analysis window is January 1990–October 2026, with 442 monthly rows. Four months contain at least one missing series:
 
-The analysis starts in January 1990. The file has 442 monthly rows through October 2026. Four months have at least one missing value:
-- 2025-10: one or more series missing.
-- 2026-08: INDPRO unavailable in the supplied snapshot.
-- 2026-09: INDPRO unavailable in the supplied snapshot.
-- 2026-10: INDPRO unavailable in the supplied snapshot.
+- October 2025: `UNRATE` is missing.
+- August, September, and October 2026: `INDPRO` is missing.
 
-The complete-case sample has 438 observations, January 1990–July 2026. Because October 2025 is an interior gap, the time-series diagnostics use the longest uninterrupted complete segment, January 1990–September 2025 (429 observations). The later November 2025–July 2026 segment contains nine observations and is not used for monthly HAC diagnostics.
+The baseline regression uses 438 complete observations, from January 1990 through July 2026. The longest uninterrupted complete segment is January 1990–September 2025 (429 observations). The later segment, November 2025–July 2026, contains nine observations and is not used for the monthly time-series diagnostics.
 
-## Integrity
+## File integrity
 
-SHA-256 of the supplied frozen snapshot:
+SHA-256:
 
 ```text
 95858e9ef24985d4a55bc698739da272882986a7d75a80396d96d2e16b1f53e4
 ```
 
-The generated `outputs/diagnostics/reproducibility_manifest.json` records this hash again alongside the analysis sample and software versions.
-
-## Important
-
-Do not replace the frozen input file without:
-1. recording the new source and retrieval date;
-2. recording the new SHA-256;
-3. regenerating every output; and
-4. committing the updated data and outputs together.
+The same hash is written to `outputs/diagnostics/reproducibility_manifest.json` whenever the replication script runs. If the data file changes, the hash in the manifest will change as well.

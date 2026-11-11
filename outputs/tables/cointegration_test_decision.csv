@@ -1,0 +1,2 @@
+test,status,reason,series_assessment,deterministic_terms,statistic,p_value,critical_value_1pct,critical_value_5pct,critical_value_10pct,nobs
+Engle-Granger,not_run,The level-series ADF and KPSS results do not support classifying all variables as I(1). The standard Engle-Granger test is therefore not reported.,INDPRO: I(1)-consistent; FEDFUNDS: conflicting; UNRATE: I(0)-consistent,,,,,,,429

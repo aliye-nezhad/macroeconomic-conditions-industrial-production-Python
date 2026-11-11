@@ -1,7 +1,7 @@
 {
   "project": "Macroeconomic Conditions and Industrial Production",
-  "project_version": "1.0.0",
-  "input_source": "user-supplied FRED CSV snapshot",
+  "project_version": "1.0.2",
+  "input_source": "FRED CSV snapshot included with the repository",
   "input_file": "data/raw/fred_snapshot.csv",
   "input_sha256": "95858e9ef24985d4a55bc698739da272882986a7d75a80396d96d2e16b1f53e4",
   "baseline_formula": "INDPRO ~ FEDFUNDS + UNRATE",
@@ -41,6 +41,7 @@
     "diagnostic_sample_start": "1990-01",
     "diagnostic_sample_end": "2025-09",
     "changes_model_n": 427,
-    "changes_model_r_squared": 0.5828958867364133
+    "changes_model_r_squared": 0.5828958867364133,
+    "cointegration_test_status": "not_run"
   }
 }

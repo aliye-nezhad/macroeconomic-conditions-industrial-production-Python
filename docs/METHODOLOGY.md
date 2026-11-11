@@ -1,36 +1,31 @@
-# Methodology and interpretation notes
+# Methodology
 
-## Historical benchmark
+## Baseline model
 
-The original descriptive model is preserved:
+The main descriptive specification is:
 
 \[
 INDPRO_t = \beta_0 + \beta_1 FEDFUNDS_t + \beta_2 UNRATE_t + u_t.
 \]
 
-The model is estimated by OLS on all complete monthly observations from January 1990 onward. HC1 standard errors are reported to preserve the original benchmark. This does not correct serial correlation or solve nonstationarity.
+It is estimated by OLS on all complete monthly observations from January 1990 onward. HC1 standard errors are reported for the baseline. They account for heteroskedasticity, but not serial correlation.
 
-## Time-index discipline
+## Monthly sample construction
 
-The data are first reindexed to a complete monthly calendar. Missing observations remain explicit. Complete-case observations are split into uninterrupted segments before any monthly lag, HAC covariance, Ljung–Box, or autoregressive operation is performed. This avoids treating dates on opposite sides of a missing month as adjacent observations.
+The data are aligned to a complete monthly index before estimation. Missing observations remain explicit. The baseline regression uses all complete observations, including observations after the October 2025 gap. Time-series diagnostics and lagged specifications use the longest uninterrupted complete segment so that a lag always refers to the preceding calendar month.
 
-## Stationarity and cointegration
+## Diagnostics
 
-ADF and KPSS tests are reported together for the level series and their first differences because their null hypotheses differ. The deterministic terms used for each series are stored in `stationarity_tests.csv`. Engle–Granger tests are reported under constant and constant-plus-trend specifications. These tests are sensitive to deterministic terms, lag selection, breaks, and sample choice; they should not be read as definitive proof of an economic relationship.
+The project reports ADF and KPSS tests for the level variables and their first differences. The tests use different null hypotheses and are interpreted together rather than treated as automatic model-selection rules. Deterministic terms and lag choices are saved in the output table.
 
-## Inference comparison
+The standard Engle–Granger test is run only if the level-series ADF and KPSS results jointly support treating all variables as I(1). In the supplied sample, that condition is not met, so the repository records that the test was not run. This avoids reporting cointegration p-values under an unsupported integration-order assumption.
 
-The repository reports:
-- HC1 on the full complete-case benchmark sample;
-- HC1 on the longest uninterrupted monthly sample; and
-- Newey–West HAC(12) on the longest uninterrupted monthly sample.
+The baseline residuals are also checked for linearity, heteroskedasticity, and autocorrelation. HAC(12) standard errors are reported on the uninterrupted sample as an inference comparison. HAC covariance estimation does not correct nonstationarity or a misspecified regression.
 
-The HAC estimates use a consecutive monthly index. HAC is a covariance estimator, not a cure for a misspecified or spurious levels regression.
+## Supplementary change model
 
-## Short-run change specification
+The supplementary specification relates monthly log growth in industrial production to current and one-month-lagged changes in FEDFUNDS and UNRATE. It is estimated by OLS with Newey–West HAC(12) standard errors. The specification is exploratory and does not identify exogenous monetary-policy shocks.
 
-The supplementary model uses monthly log growth in industrial production and current plus one-month-lagged changes in the federal funds and unemployment rates. It is estimated on the longest uninterrupted sample with HAC(12) covariance. This specification is exploratory and associational. It does not identify exogenous monetary-policy shocks and must not be described as a causal effect.
+## Interpretation
 
-## Research interpretation
-
-The project demonstrates data acquisition, validation, regression, diagnostic testing, and reproducible output generation. It does not claim to be a complete empirical investigation of monetary policy and industrial production. A stronger substantive study would require a clearly motivated identification strategy, a more developed dynamic specification, treatment of structural breaks, and economic interpretation grounded in the relevant literature.
+The baseline and supplementary regressions estimate conditional associations. Neither is a causal design. The levels model is retained as a descriptive benchmark, not presented as a stable long-run relationship. A stronger substantive study would require a theory-motivated dynamic specification and a defensible identification strategy.

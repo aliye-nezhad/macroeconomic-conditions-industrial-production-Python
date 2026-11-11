@@ -1,21 +1,73 @@
 # Macroeconomic Conditions and Industrial Production
 
-An offline-first, reproducible Python workflow for examining the association between US industrial production, the effective federal funds rate, and the unemployment rate.
+## Overview
+
+This project examines the relationship between US industrial production, the effective federal funds rate, and the unemployment rate using monthly data from the Federal Reserve Bank of St. Louis's FRED database.
+
+The analysis starts with a descriptive OLS regression and then checks whether its assumptions are reasonable for these time series. A supplementary model uses monthly changes to examine short-run associations. The results should not be interpreted as causal effects.
 
 ## Research question
 
-How are short-term monetary-policy conditions and labor-market slack associated with movements in US industrial production?
+How are monetary conditions and labor-market conditions associated with movements in US industrial production?
 
-This repository is an empirical programming and econometrics sample. Its regression estimates describe conditional associations. They are **not causal effects**.
+## Data
 
-## Reproduce the project
+The analysis uses three FRED series:
 
-The repository includes a frozen FRED CSV snapshot. The default workflow does not call the internet and does not depend on the current state of FRED.
+| Series | Description | Units |
+| --- | --- | --- |
+| `INDPRO` | Industrial Production: Total Index | Index, 2017 = 100; seasonally adjusted |
+| `FEDFUNDS` | Effective Federal Funds Rate | Percent; not seasonally adjusted |
+| `UNRATE` | Civilian Unemployment Rate | Percent; seasonally adjusted |
+
+A CSV snapshot is included at `data/raw/fred_snapshot.csv`. The main workflow reads this file and does not connect to FRED, so the results can be reproduced without an API key or an internet connection.
+
+The snapshot covers January 1990 to October 2026 (442 monthly rows). Four months contain at least one missing value. The baseline regression uses the 438 complete observations. For time-series diagnostics, the code uses the longest uninterrupted monthly segment, January 1990 to September 2025 (429 observations). October 2025 is incomplete, and the later complete segment is too short for the monthly diagnostics used here. The missing observations are documented in `outputs/tables/missing_data_report.csv`.
+
+Series definitions, the data snapshot's SHA-256 hash, and the missing-data details are recorded in `data/README.md`.
+
+## Empirical approach
+
+### Baseline regression
+
+The original descriptive specification is retained:
+
+```text
+INDPRO ~ FEDFUNDS + UNRATE
+```
+
+It is estimated by OLS using all complete observations. HC1 standard errors are reported for comparison with the original analysis. These standard errors account for heteroskedasticity, but not serial correlation.
+
+### Diagnostics
+
+The workflow examines residual autocorrelation, heteroskedasticity, linearity, and multicollinearity. It also reports ADF and KPSS tests for the level series and their first differences.
+
+An Engle–Granger cointegration test is not reported for this sample. The preliminary ADF and KPSS results do not support treating all three level series as I(1): the evidence differs across variables. Applying the standard test without that qualification would give the result more meaning than the data support.
+
+For the baseline model, the code compares HC1 standard errors with Newey–West HAC(12) standard errors on the uninterrupted monthly sample. HAC inference does not, by itself, resolve nonstationarity or model misspecification.
+
+### Short-run specification
+
+A supplementary model relates monthly log growth in industrial production to current and one-month-lagged changes in the federal funds and unemployment rates:
+
+```text
+100 × Δlog(INDPRO)
+    ~ ΔFEDFUNDS + ΔUNRATE
+    + ΔFEDFUNDS(t-1) + ΔUNRATE(t-1)
+```
+
+It is estimated on the uninterrupted sample with HAC(12) standard errors. This is an exploratory specification, not a structural monetary-policy model or a causal design.
+
+## Reproducing the results
+
+The repository includes the data snapshot and pinned package versions. The main analysis runs offline.
+
+Python 3.13.5 is the reference version used for the committed results.
 
 ### Windows (PowerShell)
 
 ```powershell
-py -m venv .venv
+py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python replication/run_all.py
@@ -24,118 +76,68 @@ python replication/run_all.py
 ### Windows (Git Bash)
 
 ```bash
-py -m venv .venv
+py -3.13 -m venv .venv
 source .venv/Scripts/activate
 python -m pip install -r requirements.txt
 python replication/run_all.py
 ```
 
-### macOS / Linux
+### macOS or Linux
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python replication/run_all.py
 ```
 
-The runner:
-1. executes the unit tests;
-2. loads the bundled frozen data snapshot;
-3. validates the monthly date index and missing observations;
-4. estimates the original descriptive levels regression;
-5. runs diagnostics on the longest uninterrupted monthly sample;
-6. estimates a supplementary first-difference specification with HAC(12) inference;
-7. writes tables, figures, and a reproducibility manifest; and
-8. validates that all expected outputs exist and contain usable data.
+The replication script runs the unit tests, loads the bundled CSV, estimates the models, generates the tables and figures, and writes a reproducibility manifest. It also checks that the manifest hash matches the input file and that the fitted-value sample size is consistent. A successful run ends with a `SUCCESS` message and confirms that all expected outputs were checked.
 
-A successful run ends with `SUCCESS` and reports the number of validated output files.
-
-## Data
-
-The three FRED series are:
-
-| Series | Description | Units |
-|---|---|---|
-| `INDPRO` | Industrial Production: Total Index | Index, 2017 = 100; seasonally adjusted |
-| `FEDFUNDS` | Effective Federal Funds Rate | Percent; not seasonally adjusted |
-| `UNRATE` | Civilian Unemployment Rate | Percent; seasonally adjusted |
-
-The analysis begins in January 1990. The frozen input is `data/raw/fred_snapshot.csv`. Its source and SHA-256 digest are documented in [`data/README.md`](data/README.md).
-
-The snapshot contains 442 monthly rows from January 1990 through October 2026. Four rows have at least one missing series: October 2025 and August–October 2026. Complete-case estimation therefore uses 438 observations. Time-series diagnostics use the longest uninterrupted complete segment, January 1990–September 2025 (429 observations), rather than treating observations on opposite sides of a missing month as adjacent.
-
-## Models and interpretation
-
-### 1. Historical descriptive benchmark
-
-```text
-INDPRO ~ FEDFUNDS + UNRATE
-```
-
-This levels OLS model is retained to make the original sample and estimates transparent. HC1 standard errors address heteroskedasticity but do not address serial correlation or nonstationarity. The levels regression should not be interpreted as a causal or necessarily stable long-run relationship.
-
-### 2. Time-series diagnostics
-
-The workflow reports:
-- ADF and KPSS tests for each series in levels and for the first-difference series;
-- Engle–Granger residual-based cointegration tests under constant and constant-plus-trend specifications;
-- Rainbow linearity and Breusch–Pagan heteroskedasticity tests;
-- Durbin–Watson and Ljung–Box residual-autocorrelation statistics;
-- variance inflation factors; and
-- inference comparisons using HC1 and Newey–West HAC(12) covariance estimates on a strictly consecutive monthly sample.
-
-The ADF and KPSS tests have different null hypotheses. Their deterministic terms are documented in the output table. Test outcomes are evidence, not an automatic instruction to difference every series.
-
-### 3. Supplementary short-run change specification
-
-The workflow estimates:
-
-```text
-100 × Δlog(INDPRO)
-    ~ ΔFEDFUNDS + ΔUNRATE
-    + ΔFEDFUNDS(t-1) + ΔUNRATE(t-1)
-```
-
-This is an exploratory short-run association model, estimated on the longest uninterrupted monthly segment with Newey–West HAC(12) standard errors. It is not a causal design. Its specification and results are reported separately from the original levels benchmark.
-
-## Output files
-
-All generated files are written under `outputs/`.
-
-| Folder | Contents |
-|---|---|
-| `outputs/tables/` | Descriptive statistics, correlations, fitted values, coefficient tables, missing-data report, inference comparison, diagnostics, stationarity and cointegration tests |
-| `outputs/figures/` | Macro series, actual-versus-fitted plot, partial-regression plot |
-| `outputs/diagnostics/` | HAC summaries and machine-readable reproducibility manifest |
-
-The manifest records the input file hash, sample dates, missing months, contiguous segments, and software versions.
-
-## Tests
-
-Run the unit tests independently:
+To run the tests separately:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-The GitHub Actions workflow also runs the tests and the complete offline replication pipeline on each push and pull request.
+The GitHub Actions workflow runs the same tests and replication script when changes are pushed or a pull request is opened.
 
-## Optional: download a newer FRED snapshot
+## Repository contents
 
-The default replication never downloads data. To create a separate newer snapshot, first install the optional downloader dependency:
-
-```bash
-python -m pip install -r requirements-fred-download.txt
-python scripts/download_fred_snapshot.py --start 1990-01-01 --output data/raw/fred_snapshot_new.csv
+```text
+.
+├── code/                  # Data preparation, estimation, and diagnostics
+├── data/
+│   ├── raw/                # Frozen FRED data snapshot
+│   └── README.md           # Data sources and provenance
+├── docs/                   # Methodology and reproducibility notes
+├── outputs/
+│   ├── diagnostics/        # Model summaries and reproducibility manifest
+│   ├── figures/            # Generated figures
+│   └── tables/             # Regression and diagnostic results
+├── replication/
+│   └── run_all.py          # Main replication entry point
+├── scripts/                # Optional data-download utility
+├── tests/                  # Unit tests
+├── requirements.txt
+└── README.md
 ```
 
-Review the new file, update its provenance and hash, and deliberately replace the frozen input only when you intend to create a new data vintage. Do not silently overwrite the snapshot used for a published or submitted result.
+## Outputs
+
+The main outputs are saved under `outputs/`:
+
+- `tables/` contains descriptive statistics, correlations, regression estimates, fitted values, missing-data information, and diagnostic results.
+- `figures/` contains the time-series plots, fitted-versus-actual plot, and partial-regression plot.
+- `diagnostics/` contains model summaries and a JSON manifest recording the input hash, sample information, and package versions.
 
 ## Limitations
 
-- The baseline levels regression is descriptive and has substantial time-series diagnostic concerns.
-- HC1 does not correct serial correlation.
-- The change specification is a transparent robustness exercise, not a structural monetary-policy model.
-- FRED can revise historical observations. The frozen snapshot prevents silent changes to the input data, but it does not guarantee that a later FRED download will match this vintage.
-- Numerical reproducibility is strongest when the pinned dependencies and Python version documented in `requirements.txt` are used.
+The levels regression is a descriptive benchmark. The diagnostics show substantial residual autocorrelation and heteroskedasticity, while the stationarity tests raise concerns about the time-series properties of the variables. Its coefficients should therefore not be read as stable long-run effects.
+
+The supplementary change specification is exploratory. It does not identify exogenous monetary-policy shocks, and none of the reported regressions establishes causality. A more complete empirical study would need a theory-motivated dynamic specification and a defensible identification strategy.
+
+FRED may revise historical observations. For that reason, the default workflow uses the included data snapshot. The optional download script creates a separate file rather than overwriting the snapshot used for the committed results.
+
+## License
+
+The code is released under the MIT License. See `LICENSE`.

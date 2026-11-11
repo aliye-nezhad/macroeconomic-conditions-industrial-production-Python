@@ -259,7 +259,7 @@ def build_manifest(
     snapshot_path: Path,
     data: pd.DataFrame,
     output_dir: Path,
-    source_label: str = "user-supplied FRED CSV snapshot",
+    source_label: str = "FRED CSV snapshot included with the repository",
 ) -> dict:
     """Create a machine-readable record of the exact input and software versions."""
     segments = contiguous_complete_segments(data)
@@ -272,7 +272,7 @@ def build_manifest(
         input_label = snapshot_path.name
     manifest = {
         "project": "Macroeconomic Conditions and Industrial Production",
-        "project_version": "1.0.0",
+        "project_version": "1.0.2",
         "input_source": source_label,
         "input_file": input_label,
         "input_sha256": sha256_file(snapshot_path),

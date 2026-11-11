@@ -86,8 +86,68 @@ def run_stationarity_tests(data: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(rows)
 
-def run_cointegration_tests(data: pd.DataFrame) -> pd.DataFrame:
-    """Run Engle-Granger tests under constant and constant-plus-trend alternatives."""
+def run_cointegration_tests(
+    data: pd.DataFrame,
+    stationarity_results: pd.DataFrame,
+) -> pd.DataFrame:
+    """Run Engle-Granger only when preliminary tests support I(1) in every series.
+
+    The standard Engle-Granger procedure assumes the variables in the
+    cointegrating relationship are I(1). If ADF and KPSS results do not
+    jointly support that classification for every level series, the test is
+    not run and the reason is recorded.
+    """
+    assessments: dict[str, str] = {}
+    for variable in SERIES:
+        level_rows = stationarity_results[
+            (stationarity_results["variable"] == variable)
+            & (stationarity_results["test"].isin(["ADF", "KPSS"]))
+        ]
+        adf_rows = level_rows[level_rows["test"] == "ADF"]
+        kpss_rows = level_rows[level_rows["test"] == "KPSS"]
+        if adf_rows.empty or kpss_rows.empty:
+            assessments[variable] = "inconclusive"
+            continue
+
+        adf_p = float(adf_rows.iloc[0]["p_value"])
+        kpss_p = float(kpss_rows.iloc[0]["p_value"])
+
+        if adf_p >= 0.05 and kpss_p < 0.05:
+            assessments[variable] = "I(1)-consistent"
+        elif adf_p < 0.05 and kpss_p >= 0.05:
+            assessments[variable] = "I(0)-consistent"
+        elif adf_p < 0.05 and kpss_p < 0.05:
+            assessments[variable] = "conflicting"
+        else:
+            assessments[variable] = "inconclusive"
+
+    assessment_text = "; ".join(
+        f"{variable}: {assessments[variable]}" for variable in SERIES
+    )
+
+    if not all(assessments[variable] == "I(1)-consistent" for variable in SERIES):
+        return pd.DataFrame(
+            [
+                {
+                    "test": "Engle-Granger",
+                    "status": "not_run",
+                    "reason": (
+                        "The level-series ADF and KPSS results do not support "
+                        "classifying all variables as I(1). The standard "
+                        "Engle-Granger test is therefore not reported."
+                    ),
+                    "series_assessment": assessment_text,
+                    "deterministic_terms": np.nan,
+                    "statistic": np.nan,
+                    "p_value": np.nan,
+                    "critical_value_1pct": np.nan,
+                    "critical_value_5pct": np.nan,
+                    "critical_value_10pct": np.nan,
+                    "nobs": int(len(data)),
+                }
+            ]
+        )
+
     rows = []
     y = data["INDPRO"].to_numpy()
     x = data[["FEDFUNDS", "UNRATE"]].to_numpy()
@@ -99,6 +159,9 @@ def run_cointegration_tests(data: pd.DataFrame) -> pd.DataFrame:
         rows.append(
             {
                 "test": "Engle-Granger",
+                "status": "run",
+                "reason": "",
+                "series_assessment": assessment_text,
                 "deterministic_terms": trend,
                 "statistic": float(statistic),
                 "p_value": float(p_value),
@@ -209,8 +272,8 @@ def run_diagnostics(data: pd.DataFrame, output_dir: Path) -> dict:
 
     stationarity = run_stationarity_tests(contiguous)
     stationarity.to_csv(tables / "stationarity_tests.csv", index=False)
-    cointegration = run_cointegration_tests(contiguous)
-    cointegration.to_csv(tables / "cointegration_tests.csv", index=False)
+    cointegration = run_cointegration_tests(contiguous, stationarity)
+    cointegration.to_csv(tables / "cointegration_test_decision.csv", index=False)
 
     change_data = build_change_dataset(contiguous)
     change_formula = (
@@ -263,4 +326,5 @@ def run_diagnostics(data: pd.DataFrame, output_dir: Path) -> dict:
         "diagnostic_sample_end": contiguous.index.max().strftime("%Y-%m"),
         "changes_model_n": int(len(change_data)),
         "changes_model_r_squared": float(change_ols.rsquared),
+        "cointegration_test_status": str(cointegration.iloc[0]["status"]),
     }

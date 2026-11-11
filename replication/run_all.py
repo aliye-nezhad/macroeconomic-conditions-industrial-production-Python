@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -17,6 +18,7 @@ from macro_regression_workflow import (  # noqa: E402
     estimate_baseline_model,
     load_snapshot,
     save_baseline_outputs,
+    sha256_file,
 )
 from diagnostic_workflow import run_diagnostics  # noqa: E402
 
@@ -32,7 +34,7 @@ EXPECTED_OUTPUTS = (
     "tables/ljung_box_tests.csv",
     "tables/variance_inflation_factors.csv",
     "tables/stationarity_tests.csv",
-    "tables/cointegration_tests.csv",
+    "tables/cointegration_test_decision.csv",
     "tables/changes_model_coefficients_hac12.csv",
     "tables/complete_monthly_segments.csv",
     "figures/macro_series.png",
@@ -44,7 +46,7 @@ EXPECTED_OUTPUTS = (
 )
 
 
-def validate_outputs(output_dir: Path) -> None:
+def validate_outputs(output_dir: Path, data_path: Path) -> None:
     """Fail if an expected output is missing, empty, or malformed."""
     missing_or_empty = [
         relative for relative in EXPECTED_OUTPUTS
@@ -63,6 +65,18 @@ def validate_outputs(output_dir: Path) -> None:
     fitted = pd.read_csv(output_dir / "tables/fitted_values.csv")
     if fitted.empty or fitted[["INDPRO_actual", "INDPRO_fitted", "residual"]].isna().any().any():
         raise RuntimeError("Fitted-values output failed numeric validation.")
+
+    manifest = json.loads(
+        (output_dir / "diagnostics/reproducibility_manifest.json").read_text(encoding="utf-8")
+    )
+    if manifest.get("input_sha256") != sha256_file(data_path):
+        raise RuntimeError("Reproducibility manifest hash does not match the input data.")
+    if len(fitted) != int(manifest.get("complete_case_observations", -1)):
+        raise RuntimeError("Fitted-values row count does not match the manifest sample size.")
+
+    cointegration = pd.read_csv(output_dir / "tables/cointegration_test_decision.csv")
+    if cointegration.empty or cointegration.iloc[0].get("status") not in {"run", "not_run"}:
+        raise RuntimeError("Cointegration test decision is missing or invalid.")
 
     coefficients = pd.read_csv(output_dir / "tables/baseline_coefficients.csv")
     if not {"term", "coefficient", "standard_error", "p_value"}.issubset(coefficients.columns):
@@ -120,7 +134,7 @@ def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
         encoding="utf-8",
     )
 
-    validate_outputs(output_dir)
+    validate_outputs(output_dir, data_path)
     print(
         f"SUCCESS: all stages completed; {len(EXPECTED_OUTPUTS)} outputs validated.",
         flush=True,

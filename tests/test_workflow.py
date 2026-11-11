@@ -20,7 +20,7 @@ from macro_regression_workflow import (  # noqa: E402
     longest_contiguous_segment,
     prepare_monthly_data,
 )
-from diagnostic_workflow import build_change_dataset  # noqa: E402
+from diagnostic_workflow import build_change_dataset, run_cointegration_tests  # noqa: E402
 import statsmodels.formula.api as smf  # noqa: E402
 
 
@@ -78,6 +78,22 @@ class DataContractTests(unittest.TestCase):
             ["Intercept", "FEDFUNDS", "UNRATE"],
         )
         self.assertTrue(np.isfinite(table["coefficient"]).all())
+
+    def test_cointegration_is_not_run_when_level_series_are_not_all_i1(self) -> None:
+        stationarity = pd.DataFrame(
+            [
+                {"variable": "INDPRO", "test": "ADF", "p_value": 0.80},
+                {"variable": "INDPRO", "test": "KPSS", "p_value": 0.01},
+                {"variable": "FEDFUNDS", "test": "ADF", "p_value": 0.01},
+                {"variable": "FEDFUNDS", "test": "KPSS", "p_value": 0.01},
+                {"variable": "UNRATE", "test": "ADF", "p_value": 0.03},
+                {"variable": "UNRATE", "test": "KPSS", "p_value": 0.10},
+            ]
+        )
+        result = run_cointegration_tests(self.frame, stationarity)
+        self.assertEqual(result.iloc[0]["status"], "not_run")
+        self.assertIn("FEDFUNDS: conflicting", result.iloc[0]["series_assessment"])
+        self.assertIn("UNRATE: I(0)-consistent", result.iloc[0]["series_assessment"])
 
     def test_bundled_snapshot_loads_and_has_regular_monthly_index(self) -> None:
         snapshot = ROOT / "data/raw/fred_snapshot.csv"

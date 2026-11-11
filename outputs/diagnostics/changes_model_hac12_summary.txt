@@ -1,4 +1,4 @@
-                            OLS Regression Results
+                            OLS Regression Results                            
 ==============================================================================
 Dep. Variable:          ip_growth_pct   R-squared:                       0.583
 Model:                            OLS   Adj. R-squared:                  0.579
@@ -7,8 +7,8 @@ Date: [omitted for deterministic output]
 Time: [omitted for deterministic output]
 No. Observations:                 427   AIC:                             875.3
 Df Residuals:                     422   BIC:                             895.6
-Df Model:                           4
-Covariance Type:                  HAC
+Df Model:                           4                                         
+Covariance Type:                  HAC                                         
 =================================================================================
                     coef    std err          t      P>|t|      [0.025      0.975]
 ---------------------------------------------------------------------------------

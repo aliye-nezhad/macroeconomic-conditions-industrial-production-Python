@@ -1,4 +1,4 @@
-                            OLS Regression Results
+                            OLS Regression Results                            
 ==============================================================================
 Dep. Variable:                 INDPRO   R-squared:                       0.574
 Model:                            OLS   Adj. R-squared:                  0.572
@@ -7,8 +7,8 @@ Date: [omitted for deterministic output]
 Time: [omitted for deterministic output]
 No. Observations:                 429   AIC:                             3050.
 Df Residuals:                     426   BIC:                             3062.
-Df Model:                           2
-Covariance Type:                  HAC
+Df Model:                           2                                         
+Covariance Type:                  HAC                                         
 ==============================================================================
                  coef    std err          t      P>|t|      [0.025      0.975]
 ------------------------------------------------------------------------------
