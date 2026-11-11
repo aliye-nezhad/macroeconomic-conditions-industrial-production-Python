@@ -1,19 +1,26 @@
+
 name: Reproducibility
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   replicate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.13.5"
-          cache: "pip"
-      - name: Install pinned dependencies
+          python-version-file: .python-version
+          cache: pip
+
+      - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run tests and full offline replication
+
+      - name: Run replication
         run: python replication/run_all.py
