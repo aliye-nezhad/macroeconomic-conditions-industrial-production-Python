@@ -1,0 +1,46 @@
+{
+  "project": "Macroeconomic Conditions and Industrial Production",
+  "project_version": "1.0.0",
+  "input_source": "user-supplied FRED CSV snapshot",
+  "input_file": "data/raw/fred_snapshot.csv",
+  "input_sha256": "95858e9ef24985d4a55bc698739da272882986a7d75a80396d96d2e16b1f53e4",
+  "baseline_formula": "INDPRO ~ FEDFUNDS + UNRATE",
+  "analysis_start": "1990-01-01",
+  "snapshot_first_month": "1990-01",
+  "snapshot_last_month": "2026-10",
+  "complete_case_observations": 438,
+  "complete_case_first_month": "1990-01",
+  "complete_case_last_month": "2026-07",
+  "missing_months": [
+    "2025-10",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+  ],
+  "contiguous_complete_segments": [
+    {
+      "n": 429,
+      "start": "1990-01",
+      "end": "2025-09"
+    },
+    {
+      "n": 9,
+      "start": "2025-11",
+      "end": "2026-07"
+    }
+  ],
+  "python_version": "3.13.15",
+  "pandas_version": "2.2.3",
+  "numpy_version": "2.3.5",
+  "statsmodels_version": "0.14.6",
+  "scipy_version": "1.17.0",
+  "matplotlib_version": "3.10.8",
+  "reproduction_mode": "offline; frozen input snapshot",
+  "diagnostic_sample": {
+    "diagnostic_sample_n": 429,
+    "diagnostic_sample_start": "1990-01",
+    "diagnostic_sample_end": "2025-09",
+    "changes_model_n": 427,
+    "changes_model_r_squared": 0.5828958867364133
+  }
+}

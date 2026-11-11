@@ -1,54 +1,40 @@
-# Data Documentation
+# Data provenance and contract
 
-## Source
+## Source and input
 
-The project retrieves data programmatically from the Federal Reserve Economic
-Data (FRED) database using `pandas-datareader`. Raw data are not stored in this
-repository because the scripts download the required public series directly.
+The input file `raw/fred_snapshot.csv` is a FRED CSV snapshot supplied for this project audit on 2026-11-11. The original file does not embed a download timestamp, so the exact time at which it was retrieved cannot be independently established from the file alone.
 
-| Series | Description | Frequency and units | FRED page |
-| --- | --- | --- | --- |
-| `INDPRO` | Industrial Production: Total Index | Monthly; index, 2017 = 100; seasonally adjusted | https://fred.stlouisfed.org/series/INDPRO |
-| `FEDFUNDS` | Effective Federal Funds Rate | Monthly; percent; not seasonally adjusted | https://fred.stlouisfed.org/series/FEDFUNDS |
-| `UNRATE` | Civilian Unemployment Rate | Monthly; percent; seasonally adjusted | https://fred.stlouisfed.org/series/UNRATE |
+Series:
+- `INDPRO`: Industrial Production: Total Index.
+- `FEDFUNDS`: Effective Federal Funds Rate.
+- `UNRATE`: Civilian Unemployment Rate.
 
-## Sample
+The downloaded file has an `observation_date` column and three series columns. The repository preserves this input snapshot unchanged.
 
-- Start date: `1990-01-01`
-- End date: latest observation available when the scripts are run
-- Observation frequency: monthly
+## Analysis window and missingness
 
-The code requires at least 30 complete observations after cleaning.
+The analysis starts in January 1990. The file has 442 monthly rows through October 2026. Four months have at least one missing value:
+- 2025-10: one or more series missing.
+- 2026-08: INDPRO unavailable in the supplied snapshot.
+- 2026-09: INDPRO unavailable in the supplied snapshot.
+- 2026-10: INDPRO unavailable in the supplied snapshot.
 
-## Processing
+The complete-case sample has 438 observations, January 1990–July 2026. Because October 2025 is an interior gap, the time-series diagnostics use the longest uninterrupted complete segment, January 1990–September 2025 (429 observations). The later November 2025–July 2026 segment contains nine observations and is not used for monthly HAC diagnostics.
 
-`prepare_macro_data()` performs the following steps:
+## Integrity
 
-1. verifies that the downloaded data are not empty;
-2. verifies that all three required series are present;
-3. converts the index to dates;
-4. converts all series to numeric values;
-5. removes observations with missing values across the three series; and
-6. sorts observations chronologically.
+SHA-256 of the supplied frozen snapshot:
 
-The observation dates and industrial-production values used in the regression
-are included in `outputs/tables/fitted_values.csv`, together with fitted values
-and baseline residuals. The complete cleaned three-series data set is not
-written to disk; it is retrieved and prepared in memory whenever the workflow
-runs. Summary statistics and correlations are stored in
-`outputs/tables/descriptive_statistics.csv` and
-`outputs/tables/correlation_matrix.csv`.
+```text
+95858e9ef24985d4a55bc698739da272882986a7d75a80396d96d2e16b1f53e4
+```
 
-## Reproducibility Note
+The generated `outputs/diagnostics/reproducibility_manifest.json` records this hash again alongside the analysis sample and software versions.
 
-FRED data can be revised and the scripts request the latest available
-observations by default. Therefore, a future run may not reproduce every saved
-number exactly. To freeze a replication window, replace `END_DATE = None` in
-`code/macro_regression_workflow.py` with a specific date and regenerate all
-outputs.
+## Important
 
-## Data License and Attribution
-
-Users should consult the source pages above for current series notes, release
-details, and applicable terms. This repository does not redistribute a separate
-raw-data copy.
+Do not replace the frozen input file without:
+1. recording the new source and retrieval date;
+2. recording the new SHA-256;
+3. regenerating every output; and
+4. committing the updated data and outputs together.

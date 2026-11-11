@@ -1,5 +1,7 @@
-numpy>=1.26,<3
-pandas>=2.0,<4
-matplotlib>=3.8,<4
-pandas-datareader>=0.10,<0.12
-statsmodels>=0.14,<0.16
+# Exact direct dependencies tested for the offline replication workflow.
+# Reference runtime: Python 3.13.5
+numpy==2.3.5
+pandas==2.2.3
+matplotlib==3.10.8
+scipy==1.17.0
+statsmodels==0.14.6

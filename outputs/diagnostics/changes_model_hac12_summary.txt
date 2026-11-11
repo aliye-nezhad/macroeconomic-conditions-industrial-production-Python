@@ -1,0 +1,28 @@
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:          ip_growth_pct   R-squared:                       0.583
+Model:                            OLS   Adj. R-squared:                  0.579
+Method:                 Least Squares   F-statistic:                     289.4
+Date: [omitted for deterministic output]
+Time: [omitted for deterministic output]
+No. Observations:                 427   AIC:                             875.3
+Df Residuals:                     422   BIC:                             895.6
+Df Model:                           4
+Covariance Type:                  HAC
+=================================================================================
+                    coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------
+Intercept         0.1156      0.041      2.804      0.005       0.035       0.197
+d_fedfunds        0.5113      0.365      1.402      0.162      -0.206       1.228
+d_unrate         -1.3697      0.047    -29.199      0.000      -1.462      -1.278
+d_fedfunds_l1    -0.0737      0.378     -0.195      0.845      -0.816       0.669
+d_unrate_l1      -0.1571      0.047     -3.359      0.001      -0.249      -0.065
+==============================================================================
+Omnibus:                      129.041   Durbin-Watson:                   2.000
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):             1316.905
+Skew:                          -0.974   Prob(JB):                    1.09e-286
+Kurtosis:                      11.380   Cond. No.                         9.26
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 12 lags and with small sample correction

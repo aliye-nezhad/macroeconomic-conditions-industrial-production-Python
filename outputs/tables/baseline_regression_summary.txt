@@ -3,8 +3,8 @@
 Dep. Variable:                 INDPRO   R-squared:                       0.572
 Model:                            OLS   Adj. R-squared:                  0.570
 Method:                 Least Squares   F-statistic:                     301.0
-Date:                Thu, 03 Sep 2026   Prob (F-statistic):           8.58e-83
-Time:                        00:05:55   Log-Likelihood:                -1554.2
+Date: [omitted for deterministic output]
+Time: [omitted for deterministic output]
 No. Observations:                 438   AIC:                             3114.
 Df Residuals:                     435   BIC:                             3127.
 Df Model:                           2                                         
@@ -12,14 +12,14 @@ Covariance Type:                  HC1
 ==============================================================================
                  coef    std err          z      P>|z|      [0.025      0.975]
 ------------------------------------------------------------------------------
-Intercept    130.2151      2.113     61.631      0.000     126.074     134.356
-FEDFUNDS      -4.2655      0.175    -24.403      0.000      -4.608      -3.923
-UNRATE        -4.8458      0.348    -13.925      0.000      -5.528      -4.164
+Intercept    130.2207      2.113     61.618      0.000     126.079     134.363
+FEDFUNDS      -4.2656      0.175    -24.401      0.000      -4.608      -3.923
+UNRATE        -4.8465      0.348    -13.924      0.000      -5.529      -4.164
 ==============================================================================
-Omnibus:                        5.386   Durbin-Watson:                   0.061
-Prob(Omnibus):                  0.068   Jarque-Bera (JB):                4.079
-Skew:                          -0.115   Prob(JB):                        0.130
-Kurtosis:                       2.587   Cond. No.                         30.3
+Omnibus:                        5.413   Durbin-Watson:                   0.061
+Prob(Omnibus):                  0.067   Jarque-Bera (JB):                4.091
+Skew:                          -0.115   Prob(JB):                        0.129
+Kurtosis:                       2.586   Cond. No.                         30.3
 ==============================================================================
 
 Notes:

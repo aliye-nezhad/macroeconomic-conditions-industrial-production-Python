@@ -1,0 +1,26 @@
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:                 INDPRO   R-squared:                       0.574
+Model:                            OLS   Adj. R-squared:                  0.572
+Method:                 Least Squares   F-statistic:                     29.97
+Date: [omitted for deterministic output]
+Time: [omitted for deterministic output]
+No. Observations:                 429   AIC:                             3050.
+Df Residuals:                     426   BIC:                             3062.
+Df Model:                           2
+Covariance Type:                  HAC
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+Intercept    129.5869      5.734     22.600      0.000     118.316     140.857
+FEDFUNDS      -4.2648      0.568     -7.513      0.000      -5.381      -3.149
+UNRATE        -4.7664      0.936     -5.090      0.000      -6.607      -2.926
+==============================================================================
+Omnibus:                        4.076   Durbin-Watson:                   0.060
+Prob(Omnibus):                  0.130   Jarque-Bera (JB):                3.207
+Skew:                          -0.092   Prob(JB):                        0.201
+Kurtosis:                       2.619   Cond. No.                         30.3
+==============================================================================
+
+Notes:
+[1] Standard Errors are heteroscedasticity and autocorrelation robust (HAC) using 12 lags and with small sample correction

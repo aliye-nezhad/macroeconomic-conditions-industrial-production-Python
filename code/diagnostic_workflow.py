@@ -1,265 +1,266 @@
-"""Diagnostic and robustness checks for the macro regression workflow.
-
-This script reuses the cleaned FRED data and baseline model from
-macro_regression_workflow.py, then runs residual diagnostics, specification
-checks, and a small standard-error sensitivity comparison.
-"""
+"""Time-series diagnostics and inference checks for the macroeconomic project."""
 
 from __future__ import annotations
 
-import logging
+import warnings
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
-from statsmodels.regression.linear_model import RegressionResultsWrapper
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_breuschpagan
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
+from statsmodels.tsa.stattools import adfuller, coint, kpss
 
 from macro_regression_workflow import (
-    FORMULA,
-    OUTPUT_DIR,
-    estimate_baseline_model,
-    fetch_fred_data,
-    prepare_macro_data,
+    SERIES,
+    contiguous_complete_segments,
+    coefficient_table,
+    longest_contiguous_segment,
+    stable_summary_text,
 )
 
-LOGGER = logging.getLogger(__name__)
-DIAGNOSTIC_DIR = OUTPUT_DIR / "diagnostics"
-FIGURE_DIR = OUTPUT_DIR / "figures"
-TABLE_DIR = OUTPUT_DIR / "tables"
-REGRESSOR_COLUMNS: tuple[str, ...] = ("FEDFUNDS", "UNRATE")
-LJUNG_BOX_LAGS: tuple[int, ...] = (6, 12)
-RESIDUAL_AR_LAGS = 3
 
+def run_stationarity_tests(data: pd.DataFrame) -> pd.DataFrame:
+    """Run ADF and KPSS tests on levels and first differences.
 
-def configure_logging() -> None:
-    """Configure a compact console logger."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(message)s",
-    )
+    INDPRO in levels is tested with a constant and linear trend; the two rate
+    variables in levels and all first differences are tested with a constant.
+    Deterministic terms and null hypotheses are recorded in the output.
+    """
+    specifications: list[tuple[str, pd.Series, str]] = [
+        ("INDPRO", data["INDPRO"], "ct"),
+        ("FEDFUNDS", data["FEDFUNDS"], "c"),
+        ("UNRATE", data["UNRATE"], "c"),
+        ("dlog_INDPRO_pct", 100.0 * np.log(data["INDPRO"]).diff(), "c"),
+        ("d_FEDFUNDS", data["FEDFUNDS"].diff(), "c"),
+        ("d_UNRATE", data["UNRATE"].diff(), "c"),
+    ]
+    rows: list[dict] = []
 
+    for variable, raw_series, regression in specifications:
+        series = raw_series.dropna()
 
-def compute_vif(data: pd.DataFrame) -> pd.DataFrame:
-    """Calculate variance inflation factors for the regressors."""
-    missing_columns = sorted(set(REGRESSOR_COLUMNS) - set(data.columns))
-    if missing_columns:
-        raise ValueError(f"Missing required regressors: {missing_columns}")
-
-    regressors = sm.add_constant(
-        data.loc[:, REGRESSOR_COLUMNS],
-        has_constant="add",
-    )
-    values = regressors.to_numpy()
-
-    rows = []
-    for index, variable in enumerate(regressors.columns):
-        if variable == "const":
-            continue
+        adf = adfuller(series, regression=regression, autolag="AIC")
         rows.append(
             {
                 "variable": variable,
-                "vif": variance_inflation_factor(values, index),
+                "test": "ADF",
+                "deterministic_terms": regression,
+                "statistic": float(adf[0]),
+                "p_value": float(adf[1]),
+                "lags": int(adf[2]),
+                "nobs": int(adf[3]),
+                "p_value_note": "",
+                "null_hypothesis": "unit root",
+            }
+        )
+
+        note = ""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            kpss_result = kpss(series, regression=regression, nlags="auto")
+        warning_text = " ".join(str(item.message).lower() for item in caught)
+        if "actual p-value is smaller" in warning_text:
+            note = "Actual p-value is below the KPSS table range; interpret as <= 0.01."
+        elif "actual p-value is greater" in warning_text:
+            note = "Actual p-value is above the KPSS table range; interpret as >= 0.10."
+
+        rows.append(
+            {
+                "variable": variable,
+                "test": "KPSS",
+                "deterministic_terms": regression,
+                "statistic": float(kpss_result[0]),
+                "p_value": float(kpss_result[1]),
+                "lags": int(kpss_result[2]),
+                "nobs": int(len(series)),
+                "p_value_note": note,
+                "null_hypothesis": "stationarity",
             }
         )
 
     return pd.DataFrame(rows)
 
+def run_cointegration_tests(data: pd.DataFrame) -> pd.DataFrame:
+    """Run Engle-Granger tests under constant and constant-plus-trend alternatives."""
+    rows = []
+    y = data["INDPRO"].to_numpy()
+    x = data[["FEDFUNDS", "UNRATE"]].to_numpy()
 
-def run_diagnostic_tests(
-    model: RegressionResultsWrapper,
-    data: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Run linearity, heteroskedasticity, autocorrelation, and VIF checks."""
-    rainbow_stat, rainbow_p_value = sm.stats.linear_rainbow(model)
-    bp_stat, bp_p_value, bp_f_stat, bp_f_p_value = het_breuschpagan(
-        model.resid,
-        model.model.exog,
+    for trend in ("c", "ct"):
+        statistic, p_value, critical_values = coint(
+            y, x, trend=trend, autolag="aic"
+        )
+        rows.append(
+            {
+                "test": "Engle-Granger",
+                "deterministic_terms": trend,
+                "statistic": float(statistic),
+                "p_value": float(p_value),
+                "critical_value_1pct": float(critical_values[0]),
+                "critical_value_5pct": float(critical_values[1]),
+                "critical_value_10pct": float(critical_values[2]),
+                "nobs": int(len(data)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def compute_vif(data: pd.DataFrame) -> pd.DataFrame:
+    """Calculate VIFs for the two baseline regressors."""
+    regressors = sm.add_constant(
+        data[["FEDFUNDS", "UNRATE"]], has_constant="add"
     )
-
-    test_table = pd.DataFrame(
+    values = regressors.to_numpy()
+    return pd.DataFrame(
         [
             {
-                "test": "Rainbow linearity test",
-                "statistic": rainbow_stat,
-                "p_value": rainbow_p_value,
-            },
-            {
-                "test": "Breusch-Pagan LM test",
-                "statistic": bp_stat,
-                "p_value": bp_p_value,
-            },
-            {
-                "test": "Breusch-Pagan F test",
-                "statistic": bp_f_stat,
-                "p_value": bp_f_p_value,
-            },
+                "variable": variable,
+                "vif": float(variance_inflation_factor(values, index)),
+            }
+            for index, variable in enumerate(regressors.columns)
+            if variable != "const"
         ]
     )
 
-    autocorrelation_table = acorr_ljungbox(
-        model.resid,
-        lags=list(LJUNG_BOX_LAGS),
-        return_df=True,
+
+def build_change_dataset(data: pd.DataFrame) -> pd.DataFrame:
+    """Construct a transparent short-run change specification.
+
+    The dependent variable is monthly log industrial-production growth in percent.
+    Explanatory variables are current and one-month-lagged changes in the two rates.
+    """
+    frame = data.copy()
+    frame["ip_growth_pct"] = 100.0 * np.log(frame["INDPRO"]).diff()
+    frame["d_fedfunds"] = frame["FEDFUNDS"].diff()
+    frame["d_unrate"] = frame["UNRATE"].diff()
+    frame["d_fedfunds_l1"] = frame["d_fedfunds"].shift(1)
+    frame["d_unrate_l1"] = frame["d_unrate"].shift(1)
+    return frame.dropna()
+
+
+def run_diagnostics(data: pd.DataFrame, output_dir: Path) -> dict:
+    """Run diagnostics on the longest uninterrupted monthly complete-case segment."""
+    output_dir = Path(output_dir)
+    tables = output_dir / "tables"
+    figures = output_dir / "figures"
+    diagnostics = output_dir / "diagnostics"
+    for directory in (tables, figures, diagnostics):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    segments = contiguous_complete_segments(data)
+    contiguous = longest_contiguous_segment(data)
+    if len(contiguous) < 50:
+        raise ValueError("The longest uninterrupted sample is too short for time-series diagnostics.")
+
+    # Levels OLS is retained as a descriptive benchmark. HAC inference is computed
+    # only on a strictly consecutive monthly sample.
+    levels_ols = smf.ols(
+        "INDPRO ~ FEDFUNDS + UNRATE", data=contiguous
+    ).fit()
+    levels_hc1 = levels_ols.get_robustcov_results(cov_type="HC1")
+    levels_hac = levels_ols.get_robustcov_results(
+        cov_type="HAC", maxlags=12, use_correction=True
     )
-    vif_table = compute_vif(data)
 
-    return test_table, autocorrelation_table, vif_table
+    inference_rows = []
+    for label, result, covariance in (
+        ("all_complete_observations_HC1", smf.ols(
+            "INDPRO ~ FEDFUNDS + UNRATE", data=data.dropna()
+        ).fit(cov_type="HC1"), "HC1"),
+        ("longest_contiguous_segment_HC1", levels_hc1, "HC1"),
+        ("longest_contiguous_segment_HAC12", levels_hac, "HAC(12)"),
+    ):
+        table = coefficient_table(result, covariance)
+        table.insert(0, "sample", label)
+        inference_rows.append(table)
+    pd.concat(inference_rows, ignore_index=True).to_csv(
+        tables / "inference_comparison.csv", index=False
+    )
 
+    rainbow_stat, rainbow_p = sm.stats.linear_rainbow(levels_ols)
+    bp_lm, bp_lm_p, bp_f, bp_f_p = het_breuschpagan(
+        levels_ols.resid, levels_ols.model.exog
+    )
+    dw = sm.stats.stattools.durbin_watson(levels_ols.resid)
+    diagnostics_table = pd.DataFrame(
+        [
+            {"test": "Rainbow linearity", "statistic": rainbow_stat, "p_value": rainbow_p},
+            {"test": "Breusch-Pagan LM", "statistic": bp_lm, "p_value": bp_lm_p},
+            {"test": "Breusch-Pagan F", "statistic": bp_f, "p_value": bp_f_p},
+            {"test": "Durbin-Watson", "statistic": dw, "p_value": np.nan},
+        ]
+    )
+    diagnostics_table.to_csv(tables / "diagnostic_tests.csv", index=False)
 
-def fit_residual_autoreg(
-    model: RegressionResultsWrapper,
-    lags: int = RESIDUAL_AR_LAGS,
-) -> AutoRegResultsWrapper:
-    """Fit an autoregressive model to the baseline regression residuals."""
-    if lags < 1:
-        raise ValueError("The number of autoregressive lags must be positive.")
+    ljung_box = acorr_ljungbox(
+        levels_ols.resid, lags=[6, 12], return_df=True
+    )
+    ljung_box.index.name = "lag"
+    ljung_box.to_csv(tables / "ljung_box_tests.csv")
+    compute_vif(contiguous).to_csv(
+        tables / "variance_inflation_factors.csv", index=False
+    )
 
-    residuals = pd.Series(model.resid).dropna().reset_index(drop=True)
-    if len(residuals) <= lags + 5:
-        raise ValueError("Not enough residual observations for the AR model.")
+    stationarity = run_stationarity_tests(contiguous)
+    stationarity.to_csv(tables / "stationarity_tests.csv", index=False)
+    cointegration = run_cointegration_tests(contiguous)
+    cointegration.to_csv(tables / "cointegration_tests.csv", index=False)
 
-    return AutoReg(residuals, lags=lags).fit()
+    change_data = build_change_dataset(contiguous)
+    change_formula = (
+        "ip_growth_pct ~ d_fedfunds + d_unrate + "
+        "d_fedfunds_l1 + d_unrate_l1"
+    )
+    change_ols = smf.ols(change_formula, data=change_data).fit()
+    change_hac = change_ols.get_robustcov_results(
+        cov_type="HAC", maxlags=12, use_correction=True
+    )
+    coefficient_table(change_hac, "HAC(12)").to_csv(
+        tables / "changes_model_coefficients_hac12.csv", index=False
+    )
+    (diagnostics / "changes_model_hac12_summary.txt").write_text(
+        stable_summary_text(change_hac.summary().as_text()), encoding="utf-8"
+    )
+    (diagnostics / "contiguous_levels_hac12_summary.txt").write_text(
+        stable_summary_text(levels_hac.summary().as_text()), encoding="utf-8"
+    )
 
-
-def compare_standard_errors(data: pd.DataFrame) -> pd.DataFrame:
-    """Compare conventional and heteroskedasticity-robust standard errors."""
-    conventional = smf.ols(FORMULA, data=data).fit()
-    robust = smf.ols(FORMULA, data=data).fit(cov_type="HC1")
-
-    return pd.DataFrame(
+    segment_rows = [
         {
-            "coefficient": robust.params,
-            "standard_error_ols": conventional.bse,
-            "standard_error_hc1": robust.bse,
-            "p_value_ols": conventional.pvalues,
-            "p_value_hc1": robust.pvalues,
+            "segment": number,
+            "n": int(len(segment)),
+            "start": segment.index.min().strftime("%Y-%m"),
+            "end": segment.index.max().strftime("%Y-%m"),
         }
+        for number, segment in enumerate(segments, start=1)
+    ]
+    pd.DataFrame(segment_rows).to_csv(
+        tables / "complete_monthly_segments.csv", index=False
     )
 
-
-def _format_test_summary(test_result: object) -> str:
-    """Return a plain-text summary for statsmodels test results."""
-    summary = test_result.summary()
-    if hasattr(summary, "as_text"):
-        return summary.as_text()
-    return str(summary)
-
-
-def build_hypothesis_report(model: RegressionResultsWrapper) -> str:
-    """Create a compact text report for joint and individual coefficient tests."""
-    joint_test = model.f_test("FEDFUNDS = 0, UNRATE = 0")
-    fedfunds_test = model.t_test("FEDFUNDS = 0")
-    unemployment_test = model.t_test("UNRATE = 0")
-
-    sections = [
-        "Joint test: FEDFUNDS = 0 and UNRATE = 0",
-        _format_test_summary(joint_test),
-        "Individual test: FEDFUNDS = 0",
-        _format_test_summary(fedfunds_test),
-        "Individual test: UNRATE = 0",
-        _format_test_summary(unemployment_test),
-    ]
-    return "\n\n".join(sections)
-
-
-def save_partial_regression_plot(
-    data: pd.DataFrame,
-    output_dir: Path = FIGURE_DIR,
-) -> None:
-    """Save a partial regression plot for the federal funds rate coefficient."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    # Partial regression plot: do not pass the unsupported result_object argument.
     fig = sm.graphics.plot_partregress(
         endog="INDPRO",
         exog_i="FEDFUNDS",
         exog_others=["UNRATE"],
-        data=data,
+        data=contiguous,
         obs_labels=False,
-        result_object=False,
     )
     fig.set_size_inches(8, 5)
     fig.tight_layout()
-    fig.savefig(output_dir / "partial_regression_fedfunds.png", dpi=300)
+    fig.savefig(figures / "partial_regression_fedfunds.png", dpi=180)
     plt.close(fig)
 
-
-def save_diagnostic_outputs(
-    model: RegressionResultsWrapper,
-    data: pd.DataFrame,
-    diagnostic_dir: Path = DIAGNOSTIC_DIR,
-    table_dir: Path = TABLE_DIR,
-    figure_dir: Path = FIGURE_DIR,
-) -> None:
-    """Save diagnostic reports, tables, and figures by output type."""
-    diagnostic_dir.mkdir(parents=True, exist_ok=True)
-    table_dir.mkdir(parents=True, exist_ok=True)
-    figure_dir.mkdir(parents=True, exist_ok=True)
-
-    test_table, autocorrelation_table, vif_table = run_diagnostic_tests(
-        model,
-        data,
-    )
-    ar_model = fit_residual_autoreg(model)
-    standard_error_table = compare_standard_errors(data)
-    hypothesis_report = build_hypothesis_report(model)
-
-    test_table.to_csv(table_dir / "diagnostic_tests.csv", index=False)
-    autocorrelation_table.to_csv(table_dir / "ljung_box_tests.csv")
-    vif_table.to_csv(
-        table_dir / "variance_inflation_factors.csv",
-        index=False,
-    )
-    standard_error_table.to_csv(table_dir / "standard_error_comparison.csv")
-
-    (diagnostic_dir / "residual_autoregression_summary.txt").write_text(
-        ar_model.summary().as_text(),
-        encoding="utf-8",
-    )
-    (diagnostic_dir / "coefficient_hypothesis_tests.txt").write_text(
-        hypothesis_report,
-        encoding="utf-8",
-    )
-
-    save_partial_regression_plot(data, figure_dir)
-
-
-def run_diagnostics(output_dir: Path = OUTPUT_DIR) -> None:
-    """Run the diagnostic and robustness workflow."""
-    diagnostic_dir = output_dir / "diagnostics"
-    table_dir = output_dir / "tables"
-    figure_dir = output_dir / "figures"
-
-    raw_data = fetch_fred_data()
-    data = prepare_macro_data(raw_data)
-    model = estimate_baseline_model(data)
-
-    save_diagnostic_outputs(
-        model,
-        data,
-        diagnostic_dir=diagnostic_dir,
-        table_dir=table_dir,
-        figure_dir=figure_dir,
-    )
-
-    LOGGER.info("Diagnostic reports saved in: %s", diagnostic_dir.resolve())
-    LOGGER.info("Diagnostic tables saved in: %s", table_dir.resolve())
-    LOGGER.info("Diagnostic figure saved in: %s", figure_dir.resolve())
-
-
-def main() -> None:
-    """Run the script from the command line."""
-    configure_logging()
-    try:
-        run_diagnostics()
-    except Exception as exc:
-        LOGGER.exception("Diagnostics failed: %s", exc)
-        raise
-
-
-if __name__ == "__main__":
-    main()
+    return {
+        "diagnostic_sample_n": int(len(contiguous)),
+        "diagnostic_sample_start": contiguous.index.min().strftime("%Y-%m"),
+        "diagnostic_sample_end": contiguous.index.max().strftime("%Y-%m"),
+        "changes_model_n": int(len(change_data)),
+        "changes_model_r_squared": float(change_ols.rsquared),
+    }

@@ -1,247 +1,306 @@
-"""Macroeconomic regression workflow using FRED data.
+"""Data loading, validation, baseline estimation, and output generation.
 
-This script downloads three monthly macroeconomic series from FRED, estimates a
-baseline OLS model for industrial production, and saves the main regression
-outputs and figures.
+The default workflow uses a frozen CSV snapshot and does not require internet access.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import platform
+import re
+import warnings
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import statsmodels
+import scipy
 import statsmodels.formula.api as smf
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 LOGGER = logging.getLogger(__name__)
 
-FRED_SERIES: tuple[str, ...] = ("INDPRO", "FEDFUNDS", "UNRATE")
+SERIES: tuple[str, ...] = ("INDPRO", "FEDFUNDS", "UNRATE")
 START_DATE = "1990-01-01"
-END_DATE: str | None = None
-OUTPUT_DIR = Path("outputs")
-FIGURE_DIR = OUTPUT_DIR / "figures"
-TABLE_DIR = OUTPUT_DIR / "tables"
-FORMULA = "INDPRO ~ FEDFUNDS + UNRATE"
+BASELINE_FORMULA = "INDPRO ~ FEDFUNDS + UNRATE"
 MIN_OBSERVATIONS = 30
 
 
-class DataDownloadError(RuntimeError):
-    """Raised when macroeconomic data cannot be downloaded."""
+class DataValidationError(ValueError):
+    """Raised when the input data do not meet the documented data contract."""
 
 
-def configure_logging() -> None:
-    """Configure a compact console logger."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(message)s",
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest of a file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def stable_summary_text(summary_text: str) -> str:
+    """Remove run-time Date/Time fields so identical runs produce identical files."""
+    summary_text = re.sub(r"^Date:\s+.*$", "Date: [omitted for deterministic output]", summary_text, flags=re.MULTILINE)
+    summary_text = re.sub(r"^Time:\s+.*$", "Time: [omitted for deterministic output]", summary_text, flags=re.MULTILINE)
+    return summary_text
+
+
+def load_snapshot(path: Path, start_date: str = START_DATE) -> pd.DataFrame:
+    """Load a FRED CSV snapshot with an explicit observation-date column."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Data snapshot not found: {path}")
+
+    frame = pd.read_csv(path)
+    date_column = next(
+        (column for column in ("observation_date", "DATE", "date") if column in frame.columns),
+        None,
+    )
+    if date_column is None:
+        raise DataValidationError(
+            "The CSV must contain an observation_date, DATE, or date column."
+        )
+
+    frame[date_column] = pd.to_datetime(frame[date_column], errors="raise")
+    frame = frame.set_index(date_column)
+    return prepare_monthly_data(frame, start_date=start_date)
+
+
+def prepare_monthly_data(
+    raw_data: pd.DataFrame,
+    start_date: str = START_DATE,
+) -> pd.DataFrame:
+    """Validate monthly data and preserve missing months/values explicitly.
+
+    No complete-case deletion occurs here. The monthly index is made regular so
+    gaps remain visible to downstream time-series diagnostics.
+    """
+    if raw_data.empty:
+        raise DataValidationError("The input data set is empty.")
+
+    missing_columns = sorted(set(SERIES) - set(raw_data.columns))
+    if missing_columns:
+        raise DataValidationError(f"Missing required series: {missing_columns}")
+
+    data = raw_data.loc[:, list(SERIES)].copy()
+    dates = pd.to_datetime(data.index, errors="raise")
+    data.index = dates.to_period("M").to_timestamp(how="start")
+    data.index.name = "observation_date"
+
+    if data.index.has_duplicates:
+        duplicates = data.index[data.index.duplicated()].strftime("%Y-%m").tolist()
+        raise DataValidationError(f"Duplicate monthly observations: {duplicates}")
+
+    data = data.apply(pd.to_numeric, errors="coerce").sort_index()
+    data = data.loc[pd.Timestamp(start_date):]
+
+    if data.empty:
+        raise DataValidationError(f"No observations remain from {start_date} onward.")
+
+    full_index = pd.date_range(data.index.min(), data.index.max(), freq="MS")
+    data = data.reindex(full_index)
+    data.index.name = "observation_date"
+
+    if data.dropna(how="all").empty:
+        raise DataValidationError("All observations are missing after date alignment.")
+
+    complete = data.dropna()
+    if len(complete) < MIN_OBSERVATIONS:
+        raise DataValidationError(
+            f"Only {len(complete)} complete observations remain; "
+            f"at least {MIN_OBSERVATIONS} are required."
+        )
+
+    if (complete["INDPRO"] <= 0).any():
+        raise DataValidationError("INDPRO must be strictly positive for log transformations.")
+
+    return data
+
+
+def contiguous_complete_segments(data: pd.DataFrame) -> list[pd.DataFrame]:
+    """Split complete observations into uninterrupted monthly segments."""
+    complete = data.dropna().sort_index()
+    if complete.empty:
+        return []
+
+    month_number = complete.index.year * 12 + complete.index.month
+    split_points = np.where(np.diff(month_number) != 1)[0] + 1
+    boundaries = np.r_[0, split_points, len(complete)]
+    return [
+        complete.iloc[boundaries[i]:boundaries[i + 1]].copy()
+        for i in range(len(boundaries) - 1)
+    ]
+
+
+def longest_contiguous_segment(data: pd.DataFrame) -> pd.DataFrame:
+    """Return the longest uninterrupted complete monthly segment."""
+    segments = contiguous_complete_segments(data)
+    if not segments:
+        raise DataValidationError("No uninterrupted complete monthly segment exists.")
+    return max(segments, key=len)
+
+
+def missing_observation_report(data: pd.DataFrame) -> pd.DataFrame:
+    """Describe months with one or more missing series."""
+    missing = data.loc[data.isna().any(axis=1)].copy()
+    if missing.empty:
+        return pd.DataFrame(columns=["date", "missing_series", "missing_count"])
+    return pd.DataFrame(
+        {
+            "date": missing.index.strftime("%Y-%m-%d"),
+            "missing_series": [
+                ";".join(column for column in SERIES if pd.isna(row[column]))
+                for _, row in missing.iterrows()
+            ],
+            "missing_count": missing.isna().sum(axis=1).to_numpy(),
+        }
     )
 
 
-def fetch_fred_data(
-    series: Sequence[str] = FRED_SERIES,
-    start_date: str = START_DATE,
-    end_date: str | None = END_DATE,
-) -> pd.DataFrame:
-    """Download selected FRED series.
-
-    Args:
-        series: FRED series codes.
-        start_date: First observation date.
-        end_date: Last observation date. If omitted, FRED returns the latest
-            available observations.
-
-    Returns:
-        Raw monthly data indexed by date.
-
-    Raises:
-        DataDownloadError: If pandas-datareader is missing, the FRED request
-            fails, or FRED returns no observations.
-    """
-    series_codes = tuple(series)
-    if not series_codes:
-        raise ValueError("At least one FRED series code must be provided.")
-
-    try:
-        import pandas_datareader.data as web
-    except ImportError as exc:  # pragma: no cover - environment dependent
-        raise DataDownloadError(
-            "Missing dependency: pandas-datareader. Install it with "
-            "'pip install pandas-datareader' before running this script."
-        ) from exc
-
-    try:
-        data = web.DataReader(list(series_codes), "fred", start_date, end_date)
-    except Exception as exc:  # pragma: no cover - depends on live connection
-        raise DataDownloadError(
-            "FRED data could not be downloaded. Check the internet connection, "
-            "the FRED series codes, and the requested date range."
-        ) from exc
-
-    if data.empty:
-        raise DataDownloadError("FRED returned an empty data set.")
-
-    return data
-
-
-def prepare_macro_data(raw_data: pd.DataFrame) -> pd.DataFrame:
-    """Clean and validate the macroeconomic data set."""
-    if raw_data.empty:
-        raise ValueError("The input data set is empty.")
-
-    missing_columns = sorted(set(FRED_SERIES) - set(raw_data.columns))
-    if missing_columns:
-        raise ValueError(f"Missing required columns: {missing_columns}")
-
-    data = raw_data.loc[:, list(FRED_SERIES)].copy()
-    data.index = pd.to_datetime(data.index)
-    data = data.apply(pd.to_numeric, errors="coerce")
-    data = data.dropna().sort_index()
-
-    if len(data) < MIN_OBSERVATIONS:
-        raise ValueError(
-            f"The cleaned sample has {len(data)} observations; at least "
-            f"{MIN_OBSERVATIONS} are required for this regression."
-        )
-
-    return data
-
-
 def estimate_baseline_model(data: pd.DataFrame) -> RegressionResultsWrapper:
-    """Estimate the baseline OLS model with heteroskedasticity-robust errors."""
-    return smf.ols(FORMULA, data=data).fit(cov_type="HC1")
+    """Estimate the documented descriptive levels OLS with HC1 covariance."""
+    complete = data.dropna()
+    if len(complete) < MIN_OBSERVATIONS:
+        raise DataValidationError("Insufficient complete observations for baseline OLS.")
+    return smf.ols(BASELINE_FORMULA, data=complete).fit(cov_type="HC1")
+
+
+def coefficient_table(result, covariance_label: str) -> pd.DataFrame:
+    """Build a consistent coefficient table from a statsmodels result."""
+    confidence = np.asarray(result.conf_int())
+    parameter_names = (
+        list(result.params.index)
+        if hasattr(result.params, "index")
+        else list(result.model.exog_names)
+    )
+    return pd.DataFrame(
+        {
+            "term": parameter_names,
+            "coefficient": np.asarray(result.params),
+            "standard_error": np.asarray(result.bse),
+            "p_value": np.asarray(result.pvalues),
+            "ci_lower": confidence[:, 0],
+            "ci_upper": confidence[:, 1],
+            "covariance": covariance_label,
+        }
+    )
 
 
 def build_fitted_values(
     data: pd.DataFrame,
     model: RegressionResultsWrapper,
 ) -> pd.DataFrame:
-    """Return actual values, fitted values, and residuals in one table."""
+    """Return actual, fitted, and residual values with their original dates."""
     fitted = pd.DataFrame(index=data.index)
+    fitted.index.name = "observation_date"
     fitted["INDPRO_actual"] = data["INDPRO"]
     fitted["INDPRO_fitted"] = model.fittedvalues
     fitted["residual"] = model.resid
     return fitted
 
 
-def save_summary_tables(
+def save_baseline_outputs(
     data: pd.DataFrame,
     model: RegressionResultsWrapper,
-    output_dir: Path = TABLE_DIR,
+    output_dir: Path,
 ) -> None:
-    """Save descriptive statistics, correlations, and regression results."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Save baseline descriptive statistics, coefficients, fitted values, and plots."""
+    tables = output_dir / "tables"
+    figures = output_dir / "figures"
+    tables.mkdir(parents=True, exist_ok=True)
+    figures.mkdir(parents=True, exist_ok=True)
 
-    data.describe().T.to_csv(output_dir / "descriptive_statistics.csv")
-    data.corr().to_csv(output_dir / "correlation_matrix.csv")
-    build_fitted_values(data, model).to_csv(output_dir / "fitted_values.csv")
+    complete = data.dropna()
+    complete.describe().T.to_csv(tables / "descriptive_statistics.csv")
+    complete.corr().to_csv(tables / "correlation_matrix.csv")
+    build_fitted_values(complete, model).to_csv(tables / "fitted_values.csv")
+    coefficient_table(model, "HC1").to_csv(tables / "baseline_coefficients.csv", index=False)
+    (tables / "baseline_regression_summary.txt").write_text(
+        stable_summary_text(model.summary().as_text()), encoding="utf-8"
+    )
 
-    summary_path = output_dir / "baseline_regression_summary.txt"
-    summary_path.write_text(model.summary().as_text(), encoding="utf-8")
+    missing_observation_report(data).to_csv(
+        tables / "missing_data_report.csv", index=False
+    )
 
-
-def save_time_series_plot(
-    data: pd.DataFrame,
-    output_dir: Path = FIGURE_DIR,
-) -> None:
-    """Plot the three macroeconomic variables over time."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    axes = data.plot(subplots=True, figsize=(10, 7), linewidth=1.2)
-    axes_list = axes.ravel() if hasattr(axes, "ravel") else [axes]
-    for axis in axes_list:
-        axis.grid(True, alpha=0.3)
-
-    fig = axes_list[0].figure
+    fig, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    for axis, variable in zip(axes, SERIES):
+        axis.plot(data.index, data[variable], linewidth=1.0)
+        axis.set_ylabel(variable)
+        axis.grid(True, alpha=0.25)
+    axes[-1].set_xlabel("Month")
+    fig.suptitle("US Macroeconomic Series (FRED snapshot)")
     fig.tight_layout()
-    fig.savefig(output_dir / "macro_series.png", dpi=300)
+    fig.savefig(figures / "macro_series.png", dpi=180)
     plt.close(fig)
 
-
-def save_actual_vs_fitted_plot(
-    fitted_values: pd.DataFrame,
-    output_dir: Path = FIGURE_DIR,
-) -> None:
-    """Plot actual and fitted industrial production."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    fitted = build_fitted_values(complete, model)
     fig, axis = plt.subplots(figsize=(10, 5))
-    axis.plot(
-        fitted_values.index,
-        fitted_values["INDPRO_actual"],
-        label="Actual INDPRO",
-        linewidth=1.3,
-    )
-    axis.plot(
-        fitted_values.index,
-        fitted_values["INDPRO_fitted"],
-        label="Fitted INDPRO",
-        linewidth=1.3,
-    )
-    axis.set_title("Industrial Production: Actual vs. Fitted")
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Index")
-    axis.grid(True, alpha=0.3)
+    axis.plot(fitted.index, fitted["INDPRO_actual"], label="Actual INDPRO", linewidth=1.1)
+    axis.plot(fitted.index, fitted["INDPRO_fitted"], label="Fitted INDPRO", linewidth=1.1)
+    axis.set_title("Descriptive Levels OLS: Actual vs. Fitted")
+    axis.set_xlabel("Month")
+    axis.set_ylabel("Industrial production index")
+    axis.grid(True, alpha=0.25)
     axis.legend()
     fig.tight_layout()
-    fig.savefig(output_dir / "actual_vs_fitted.png", dpi=300)
+    fig.savefig(figures / "actual_vs_fitted.png", dpi=180)
     plt.close(fig)
 
 
-def save_residual_plot(
-    fitted_values: pd.DataFrame,
-    output_dir: Path = FIGURE_DIR,
-) -> None:
-    """Plot baseline regression residuals."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    fig, axis = plt.subplots(figsize=(10, 4))
-    axis.plot(fitted_values.index, fitted_values["residual"], linewidth=1.2)
-    axis.axhline(0, linestyle="--", linewidth=1)
-    axis.set_title("Baseline Regression Residuals")
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Residual")
-    axis.grid(True, alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(output_dir / "baseline_residuals.png", dpi=300)
-    plt.close(fig)
-
-
-def run_workflow(output_dir: Path = OUTPUT_DIR) -> RegressionResultsWrapper:
-    """Run the complete baseline regression workflow."""
-    table_dir = output_dir / "tables"
-    figure_dir = output_dir / "figures"
-
-    raw_data = fetch_fred_data()
-    data = prepare_macro_data(raw_data)
-    model = estimate_baseline_model(data)
-    fitted_values = build_fitted_values(data, model)
-
-    save_summary_tables(data, model, table_dir)
-    save_time_series_plot(data, figure_dir)
-    save_actual_vs_fitted_plot(fitted_values, figure_dir)
-    save_residual_plot(fitted_values, figure_dir)
-
-    LOGGER.info("Observations used: %s", len(data))
-    LOGGER.info("Adjusted R-squared: %.4f", model.rsquared_adj)
-    LOGGER.info("Tables saved in: %s", table_dir.resolve())
-    LOGGER.info("Figures saved in: %s", figure_dir.resolve())
-
-    return model
-
-
-def main() -> None:
-    """Run the script from the command line."""
-    configure_logging()
+def build_manifest(
+    snapshot_path: Path,
+    data: pd.DataFrame,
+    output_dir: Path,
+    source_label: str = "user-supplied FRED CSV snapshot",
+) -> dict:
+    """Create a machine-readable record of the exact input and software versions."""
+    segments = contiguous_complete_segments(data)
+    complete = data.dropna()
+    snapshot_path = Path(snapshot_path).resolve()
+    project_root = Path(__file__).resolve().parents[1]
     try:
-        run_workflow()
-    except Exception as exc:
-        LOGGER.exception("Workflow failed: %s", exc)
-        raise
-
-
-if __name__ == "__main__":
-    main()
-
+        input_label = snapshot_path.relative_to(project_root).as_posix()
+    except ValueError:
+        input_label = snapshot_path.name
+    manifest = {
+        "project": "Macroeconomic Conditions and Industrial Production",
+        "project_version": "1.0.0",
+        "input_source": source_label,
+        "input_file": input_label,
+        "input_sha256": sha256_file(snapshot_path),
+        "baseline_formula": BASELINE_FORMULA,
+        "analysis_start": START_DATE,
+        "snapshot_first_month": data.index.min().strftime("%Y-%m"),
+        "snapshot_last_month": data.index.max().strftime("%Y-%m"),
+        "complete_case_observations": int(len(complete)),
+        "complete_case_first_month": complete.index.min().strftime("%Y-%m"),
+        "complete_case_last_month": complete.index.max().strftime("%Y-%m"),
+        "missing_months": data.index[data.isna().any(axis=1)].strftime("%Y-%m").tolist(),
+        "contiguous_complete_segments": [
+            {
+                "n": int(len(segment)),
+                "start": segment.index.min().strftime("%Y-%m"),
+                "end": segment.index.max().strftime("%Y-%m"),
+            }
+            for segment in segments
+        ],
+        "python_version": platform.python_version(),
+        "pandas_version": pd.__version__,
+        "numpy_version": np.__version__,
+        "statsmodels_version": statsmodels.__version__,
+        "scipy_version": scipy.__version__,
+        "matplotlib_version": matplotlib.__version__,
+        "reproduction_mode": "offline; frozen input snapshot",
+    }
+    destination = output_dir / "diagnostics" / "reproducibility_manifest.json"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest

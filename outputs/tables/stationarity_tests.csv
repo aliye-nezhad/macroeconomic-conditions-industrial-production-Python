@@ -1,0 +1,13 @@
+variable,test,deterministic_terms,statistic,p_value,lags,nobs,p_value_note,null_hypothesis
+INDPRO,ADF,ct,-1.5994825419858547,0.7926348651748867,2,426,,unit root
+INDPRO,KPSS,ct,0.6198624007019669,0.01,12,429,Actual p-value is below the KPSS table range; interpret as <= 0.01.,stationarity
+FEDFUNDS,ADF,c,-3.334578385280728,0.01340182128162107,6,422,,unit root
+FEDFUNDS,KPSS,c,1.3825047937539763,0.01,12,429,Actual p-value is below the KPSS table range; interpret as <= 0.01.,stationarity
+UNRATE,ADF,c,-3.0373903454832325,0.031547098073851365,2,426,,unit root
+UNRATE,KPSS,c,0.29507080427174875,0.1,12,429,Actual p-value is above the KPSS table range; interpret as >= 0.10.,stationarity
+dlog_INDPRO_pct,ADF,c,-15.2092507674741,5.685042167787219e-28,1,426,,unit root
+dlog_INDPRO_pct,KPSS,c,0.4009913118928167,0.07672788280482037,2,428,,stationarity
+d_FEDFUNDS,ADF,c,-4.477376318546354,0.00021600131053925567,5,422,,unit root
+d_FEDFUNDS,KPSS,c,0.20361337047730688,0.1,10,428,Actual p-value is above the KPSS table range; interpret as >= 0.10.,stationarity
+d_UNRATE,ADF,c,-12.181818628118478,1.3461439960116964e-22,3,424,,unit root
+d_UNRATE,KPSS,c,0.03660252105396331,0.1,6,428,Actual p-value is above the KPSS table range; interpret as >= 0.10.,stationarity
