@@ -138,6 +138,12 @@ The supplementary change specification is exploratory. It does not identify exog
 
 FRED may revise historical observations. For that reason, the default workflow uses the included data snapshot. The optional download script creates a separate file rather than overwriting the snapshot used for the committed results.
 
+
+## Author
+
+Aliye Nezhad
+
+
 ## License
 
 The code is released under the MIT License. See `LICENSE`.
