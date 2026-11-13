@@ -1,4 +1,4 @@
-"""Time-series diagnostics and inference checks for the macroeconomic project."""
+"""Residual tests, stationarity tests, and the monthly-change model."""
 
 from __future__ import annotations
 
@@ -193,11 +193,7 @@ def compute_vif(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_change_dataset(data: pd.DataFrame) -> pd.DataFrame:
-    """Construct a transparent short-run change specification.
-
-    The dependent variable is monthly log industrial-production growth in percent.
-    Explanatory variables are current and one-month-lagged changes in the two rates.
-    """
+    """Pair monthly industrial production growth with current and lagged rate changes."""
     frame = data.copy()
     frame["ip_growth_pct"] = 100.0 * np.log(frame["INDPRO"]).diff()
     frame["d_fedfunds"] = frame["FEDFUNDS"].diff()
@@ -221,8 +217,7 @@ def run_diagnostics(data: pd.DataFrame, output_dir: Path) -> dict:
     if len(contiguous) < 50:
         raise ValueError("The longest uninterrupted sample is too short for time-series diagnostics.")
 
-    # Levels OLS is retained as a descriptive benchmark. HAC inference is computed
-    # only on a strictly consecutive monthly sample.
+    # Use the same consecutive months for the HC1 and Newey–West comparison.
     levels_ols = smf.ols(
         "INDPRO ~ FEDFUNDS + UNRATE", data=contiguous
     ).fit()
@@ -307,7 +302,6 @@ def run_diagnostics(data: pd.DataFrame, output_dir: Path) -> dict:
         tables / "complete_monthly_segments.csv", index=False
     )
 
-    # Partial regression plot: do not pass the unsupported result_object argument.
     fig = sm.graphics.plot_partregress(
         endog="INDPRO",
         exog_i="FEDFUNDS",

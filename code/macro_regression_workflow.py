@@ -1,7 +1,4 @@
-"""Data loading, validation, baseline estimation, and output generation.
-
-The default workflow uses a frozen CSV snapshot and does not require internet access.
-"""
+"""Prepare the monthly FRED data and estimate the baseline regression."""
 
 from __future__ import annotations
 
@@ -33,7 +30,7 @@ MIN_OBSERVATIONS = 30
 
 
 class DataValidationError(ValueError):
-    """Raised when the input data do not meet the documented data contract."""
+    """Raised when the input is unsuitable for the monthly regression."""
 
 
 def sha256_file(path: Path) -> str:
@@ -46,10 +43,13 @@ def sha256_file(path: Path) -> str:
 
 
 def stable_summary_text(summary_text: str) -> str:
-    """Remove run-time Date/Time fields so identical runs produce identical files."""
-    summary_text = re.sub(r"^Date:\s+.*$", "Date: [omitted for deterministic output]", summary_text, flags=re.MULTILINE)
-    summary_text = re.sub(r"^Time:\s+.*$", "Time: [omitted for deterministic output]", summary_text, flags=re.MULTILINE)
-    return summary_text
+    """Leave out the run date and time while keeping the model statistics."""
+    return re.sub(
+        r"^(?:Date|Time):[^\n]*?(?= +(?:Prob \(F-statistic\)|Log-Likelihood):)",
+        lambda prefix: " " * len(prefix[0]),
+        summary_text,
+        flags=re.MULTILINE,
+    )
 
 
 def load_snapshot(path: Path, start_date: str = START_DATE) -> pd.DataFrame:
@@ -77,11 +77,7 @@ def prepare_monthly_data(
     raw_data: pd.DataFrame,
     start_date: str = START_DATE,
 ) -> pd.DataFrame:
-    """Validate monthly data and preserve missing months/values explicitly.
-
-    No complete-case deletion occurs here. The monthly index is made regular so
-    gaps remain visible to downstream time-series diagnostics.
-    """
+    """Align the series to a monthly calendar so gaps remain visible."""
     if raw_data.empty:
         raise DataValidationError("The input data set is empty.")
 
@@ -165,7 +161,7 @@ def missing_observation_report(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def estimate_baseline_model(data: pd.DataFrame) -> RegressionResultsWrapper:
-    """Estimate the documented descriptive levels OLS with HC1 covariance."""
+    """Fit the levels regression by OLS with HC1 standard errors."""
     complete = data.dropna()
     if len(complete) < MIN_OBSERVATIONS:
         raise DataValidationError("Insufficient complete observations for baseline OLS.")
@@ -261,7 +257,7 @@ def build_manifest(
     output_dir: Path,
     source_label: str = "FRED CSV snapshot included with the repository",
 ) -> dict:
-    """Create a machine-readable record of the exact input and software versions."""
+    """Record the input file, sample dates, and software versions."""
     segments = contiguous_complete_segments(data)
     complete = data.dropna()
     snapshot_path = Path(snapshot_path).resolve()

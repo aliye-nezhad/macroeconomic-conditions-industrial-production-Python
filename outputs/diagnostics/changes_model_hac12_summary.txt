@@ -3,8 +3,8 @@
 Dep. Variable:          ip_growth_pct   R-squared:                       0.583
 Model:                            OLS   Adj. R-squared:                  0.579
 Method:                 Least Squares   F-statistic:                     289.4
-Date: [omitted for deterministic output]
-Time: [omitted for deterministic output]
+                                        Prob (F-statistic):          1.73e-119
+                                        Log-Likelihood:                -432.67
 No. Observations:                 427   AIC:                             875.3
 Df Residuals:                     422   BIC:                             895.6
 Df Model:                           4                                         

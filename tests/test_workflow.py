@@ -1,4 +1,4 @@
-"""Unit tests for data contracts and time-index handling."""
+"""Tests for monthly data preparation and regression diagnostics."""
 
 from __future__ import annotations
 

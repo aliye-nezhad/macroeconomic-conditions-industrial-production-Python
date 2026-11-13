@@ -1,31 +1,21 @@
 # Methodology
 
-## Baseline model
+## Sample and baseline model
 
-The main descriptive specification is:
+The data are aligned to a monthly calendar. The baseline regression uses every month with observations for all three series, including the months after the October 2025 gap. I estimate the following equation by OLS and report HC1 standard errors.
 
-\[
-INDPRO_t = \beta_0 + \beta_1 FEDFUNDS_t + \beta_2 UNRATE_t + u_t.
-\]
+$$
+\mathrm{INDPRO}_t = \beta_0 + \beta_1 \mathrm{FEDFUNDS}_t + \beta_2 \mathrm{UNRATE}_t + u_t.
+$$
 
-It is estimated by OLS on all complete monthly observations from January 1990 onward. HC1 standard errors are reported for the baseline. They account for heteroskedasticity, but not serial correlation.
+The time-series diagnostics use the longest stretch of consecutive complete months, January 1990 through September 2025. On that sample, I fit the same levels model and compare HC1 and Newey–West standard errors with 12 lags and a small-sample correction. The residual diagnostics include the Rainbow, Breusch–Pagan, and Ljung–Box tests and the Durbin–Watson statistic. The standard-error comparison addresses how residual dependence affects inference. Questions about nonstationarity and the specification still apply. [Results](../outputs/tables/inference_comparison.csv)
 
-## Monthly sample construction
+## Stationarity and cointegration
 
-The data are aligned to a complete monthly index before estimation. Missing observations remain explicit. The baseline regression uses all complete observations, including observations after the October 2025 gap. Time-series diagnostics and lagged specifications use the longest uninterrupted complete segment so that a lag always refers to the preceding calendar month.
+The ADF test takes a unit root as its null hypothesis. The KPSS test takes stationarity as its null. Both tests include a constant and linear trend for industrial production in levels. The rate series in levels and all transformed series use a constant. The transformations are the first difference of log industrial production and the first differences of the two rates. [Test results and lags](../outputs/tables/stationarity_tests.csv)
 
-## Diagnostics
+At the 5% level, the results for industrial production are consistent with a unit root, both tests reject their respective nulls for the federal funds rate, and the unemployment results are consistent with stationarity. The standard Engle–Granger test assumes that the series in the proposed long-run relationship are each integrated of order one. Given the mixed evidence, I report the stationarity tests and leave out the cointegration estimate. [Cointegration test decision](../outputs/tables/cointegration_test_decision.csv)
 
-The project reports ADF and KPSS tests for the level variables and their first differences. The tests use different null hypotheses and are interpreted together rather than treated as automatic model-selection rules. Deterministic terms and lag choices are saved in the output table.
+## Monthly-change model
 
-The standard Engle–Granger test is run only if the level-series ADF and KPSS results jointly support treating all variables as I(1). In the supplied sample, that condition is not met, so the repository records that the test was not run. This avoids reporting cointegration p-values under an unsupported integration-order assumption.
-
-The baseline residuals are also checked for linearity, heteroskedasticity, and autocorrelation. HAC(12) standard errors are reported on the uninterrupted sample as an inference comparison. HAC covariance estimation does not correct nonstationarity or a misspecified regression.
-
-## Supplementary change model
-
-The supplementary specification relates monthly log growth in industrial production to current and one-month-lagged changes in FEDFUNDS and UNRATE. It is estimated by OLS with Newey–West HAC(12) standard errors. The specification is exploratory and does not identify exogenous monetary-policy shocks.
-
-## Interpretation
-
-The baseline and supplementary regressions estimate conditional associations. Neither is a causal design. The levels model is retained as a descriptive benchmark, not presented as a stable long-run relationship. A stronger substantive study would require a theory-motivated dynamic specification and a defensible identification strategy.
+The dependent variable is 100 times the monthly log change in industrial production. The regressors are current and one-month-lagged changes in the two rates, measured in percentage points. I estimate the model by OLS and report Newey–West standard errors with 12 lags and a small-sample correction. The coefficients describe short-run conditional associations in 427 months. [Monthly-change estimates](../outputs/tables/changes_model_coefficients_hac12.csv)

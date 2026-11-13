@@ -1,5 +1,4 @@
-# Reference environment: Python 3.13.5
-# Direct and required transitive dependencies for the offline replication workflow.
+# Package versions used with Python 3.13.15.
 numpy==2.3.5
 pandas==2.2.3
 matplotlib==3.10.8

@@ -1,4 +1,4 @@
-"""One-command, offline-first replication entry point."""
+"""Reproduce the industrial production results from the saved FRED data."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def validate_outputs(output_dir: Path, data_path: Path) -> None:
 
 
 def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
-    """Execute tests, load one fixed snapshot, estimate, diagnose, and validate."""
+    """Fit the models and write the tables, figures, and diagnostics."""
     data_path = data_path.resolve()
     output_dir = output_dir.resolve()
 
@@ -102,8 +102,7 @@ def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
             check=True,
         )
 
-    # Clear only the three generated subfolders. Never delete the project root
-    # or an ancestor directory if a caller supplies a mistaken --output-dir.
+    # Protect the project directory before replacing the result folders.
     if output_dir == ROOT or output_dir in ROOT.parents:
         raise ValueError("--output-dir cannot be the project root or one of its parent directories.")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -113,7 +112,7 @@ def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
             shutil.rmtree(generated_folder)
         generated_folder.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading frozen data snapshot: {data_path.name}", flush=True)
+    print(f"Reading {data_path.name}", flush=True)
     data = load_snapshot(data_path)
     complete = data.dropna()
     print(
@@ -121,11 +120,11 @@ def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
         flush=True,
     )
 
-    print("Running baseline regression...", flush=True)
+    print("Estimating the levels regression...", flush=True)
     baseline = estimate_baseline_model(data)
     save_baseline_outputs(data, baseline, output_dir)
 
-    print("Running time-series diagnostics and robustness specifications...", flush=True)
+    print("Running diagnostics and estimating the monthly-change model...", flush=True)
     diagnostic_info = run_diagnostics(data, output_dir)
     manifest = build_manifest(data_path, data, output_dir)
     manifest["diagnostic_sample"] = diagnostic_info
@@ -136,36 +135,36 @@ def run(data_path: Path, output_dir: Path, run_tests: bool = True) -> None:
 
     validate_outputs(output_dir, data_path)
     print(
-        f"SUCCESS: all stages completed; {len(EXPECTED_OUTPUTS)} outputs validated.",
+        f"SUCCESS: checked {len(EXPECTED_OUTPUTS)} result files.",
         flush=True,
     )
     print(
-        f"Baseline n={int(baseline.nobs)}, R-squared={baseline.rsquared:.4f}; "
-        f"diagnostic contiguous n={diagnostic_info['diagnostic_sample_n']}.",
+        f"Levels model: {int(baseline.nobs)} months, R-squared {baseline.rsquared:.4f}. "
+        f"Diagnostic sample: {diagnostic_info['diagnostic_sample_n']} consecutive months.",
         flush=True,
     )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run the offline-first macroeconomic replication workflow."
+        description="Estimate the industrial production models from a saved FRED CSV."
     )
     parser.add_argument(
         "--data",
         type=Path,
         default=ROOT / "data/raw/fred_snapshot.csv",
-        help="Path to a FRED CSV snapshot (default: bundled frozen snapshot).",
+        help="FRED CSV file (defaults to the copy in data/raw).",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=ROOT / "outputs",
-        help="Directory for generated tables, figures, and diagnostics.",
+        help="Directory for tables, figures, and diagnostics.",
     )
     parser.add_argument(
         "--skip-tests",
         action="store_true",
-        help="Skip unit tests (not recommended for a reviewer replication).",
+        help="Run the analysis without the unit tests.",
     )
     args = parser.parse_args()
     run(args.data, args.output_dir, run_tests=not args.skip_tests)

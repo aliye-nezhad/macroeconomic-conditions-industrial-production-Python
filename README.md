@@ -1,149 +1,86 @@
 # Macroeconomic Conditions and Industrial Production
 
-## Overview
-
-This project examines the relationship between US industrial production, the effective federal funds rate, and the unemployment rate using monthly data from the Federal Reserve Bank of St. Louis's FRED database.
-
-The analysis starts with a descriptive OLS regression and then checks whether its assumptions are reasonable for these time series. A supplementary model uses monthly changes to examine short-run associations. The results should not be interpreted as causal effects.
-
-## Research question
-
-How are monetary conditions and labor-market conditions associated with movements in US industrial production?
+How do the federal funds rate and unemployment move with U.S. industrial production? I compare a regression in levels with a model of monthly changes using data from the Federal Reserve Bank of St. Louis.
 
 ## Data
 
-The analysis uses three FRED series:
-
-| Series | Description | Units |
+| FRED series | Measure | Units |
 | --- | --- | --- |
-| `INDPRO` | Industrial Production: Total Index | Index, 2017 = 100; seasonally adjusted |
-| `FEDFUNDS` | Effective Federal Funds Rate | Percent; not seasonally adjusted |
-| `UNRATE` | Civilian Unemployment Rate | Percent; seasonally adjusted |
+| [`INDPRO`](https://fred.stlouisfed.org/series/INDPRO) | Industrial production | Index (2017 = 100), seasonally adjusted |
+| [`FEDFUNDS`](https://fred.stlouisfed.org/series/FEDFUNDS) | Effective federal funds rate | Percent, not seasonally adjusted |
+| [`UNRATE`](https://fred.stlouisfed.org/series/UNRATE) | Civilian unemployment rate | Percent, seasonally adjusted |
 
-A CSV snapshot is included at `data/raw/fred_snapshot.csv`. The main workflow reads this file and does not connect to FRED, so the results can be reproduced without an API key or an internet connection.
+The [saved FRED data](data/raw/fred_snapshot.csv) cover January 1990 through October 2026. Four of the 442 months are missing at least one series. The levels regression uses all 438 complete observations. The time-series tests use the longest stretch of consecutive complete months, January 1990 through September 2025 (429 observations). On that sample, a one-month lag always refers to the preceding calendar month. [Data notes](data/README.md)
 
-The snapshot covers January 1990 to October 2026 (442 monthly rows). Four months contain at least one missing value. The baseline regression uses the 438 complete observations. For time-series diagnostics, the code uses the longest uninterrupted monthly segment, January 1990 to September 2025 (429 observations). October 2025 is incomplete, and the later complete segment is too short for the monthly diagnostics used here. The missing observations are documented in `outputs/tables/missing_data_report.csv`.
+## Levels regression
 
-Series definitions, the data snapshot's SHA-256 hash, and the missing-data details are recorded in `data/README.md`.
+I regress the industrial production index on the federal funds and unemployment rates by OLS. Both coefficients are negative in the full sample. On the consecutive-month sample, the residual Durbin–Watson statistic is 0.06, and Newey–West standard errors with 12 lags are larger than HC1 standard errors for both slopes. The residual tests also indicate heteroskedasticity and departures from linearity. I use the levels regression as a descriptive benchmark. [Baseline estimates](outputs/tables/baseline_coefficients.csv) · [Standard-error comparison](outputs/tables/inference_comparison.csv) · [Residual tests](outputs/tables/diagnostic_tests.csv)
 
-## Empirical approach
+I read the ADF and KPSS results together. They are consistent with a unit root in industrial production and stationarity in unemployment. The two tests give conflicting results for the federal funds rate. The standard Engle–Granger test assumes the three series are integrated of order one. Given the mixed evidence, I leave the test out. [Stationarity tests](outputs/tables/stationarity_tests.csv) · [Methods](docs/METHODOLOGY.md)
 
-### Baseline regression
+## Monthly changes
 
-The original descriptive specification is retained:
+I regress monthly industrial production growth (`100 × Δlog(INDPRO)`) on current and one-month-lagged changes in the two rates. Differencing and lagging leave 427 observations. A one-percentage-point rise in unemployment is associated with industrial production growth 1.37 percentage points lower in the same month, holding the other regressors fixed. The 95% Newey–West confidence intervals for both federal funds rate coefficients include zero. Estimating a causal effect would require isolating exogenous changes in the policy rate. [Monthly-change estimates](outputs/tables/changes_model_coefficients_hac12.csv)
 
-```text
-INDPRO ~ FEDFUNDS + UNRATE
-```
+## Run the analysis
 
-It is estimated by OLS using all complete observations. HC1 standard errors are reported for comparison with the original analysis. These standard errors account for heteroskedasticity, but not serial correlation.
+Python 3.13.15 was used for the results in this repository. From the repository root, create and activate a virtual environment.
 
-### Diagnostics
-
-The workflow examines residual autocorrelation, heteroskedasticity, linearity, and multicollinearity. It also reports ADF and KPSS tests for the level series and their first differences.
-
-An Engle–Granger cointegration test is not reported for this sample. The preliminary ADF and KPSS results do not support treating all three level series as I(1): the evidence differs across variables. Applying the standard test without that qualification would give the result more meaning than the data support.
-
-For the baseline model, the code compares HC1 standard errors with Newey–West HAC(12) standard errors on the uninterrupted monthly sample. HAC inference does not, by itself, resolve nonstationarity or model misspecification.
-
-### Short-run specification
-
-A supplementary model relates monthly log growth in industrial production to current and one-month-lagged changes in the federal funds and unemployment rates:
-
-```text
-100 × Δlog(INDPRO)
-    ~ ΔFEDFUNDS + ΔUNRATE
-    + ΔFEDFUNDS(t-1) + ΔUNRATE(t-1)
-```
-
-It is estimated on the uninterrupted sample with HAC(12) standard errors. This is an exploratory specification, not a structural monetary-policy model or a causal design.
-
-## Reproducing the results
-
-The repository includes the data snapshot and pinned package versions. The main analysis runs offline.
-
-Python 3.13.5 is the reference version used for the committed results.
-
-### Windows (PowerShell)
-
-```powershell
-py -3.13 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python replication/run_all.py
-```
-
-### Windows (Git Bash)
-
-```bash
-py -3.13 -m venv .venv
-source .venv/Scripts/activate
-python -m pip install -r requirements.txt
-python replication/run_all.py
-```
-
-### macOS or Linux
+**macOS or Linux**
 
 ```bash
 python3.13 -m venv .venv
 source .venv/bin/activate
+```
+
+**Windows PowerShell**
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Windows Git Bash**
+
+```bash
+py -3.13 -m venv .venv
+source .venv/Scripts/activate
+```
+
+```bash
 python -m pip install -r requirements.txt
 python replication/run_all.py
 ```
 
-The replication script runs the unit tests, loads the bundled CSV, estimates the models, generates the tables and figures, and writes a reproducibility manifest. It also checks that the manifest hash matches the input file and that the fitted-value sample size is consistent. A successful run ends with a `SUCCESS` message and confirms that all expected outputs were checked.
+After package installation, the analysis reads the included CSV locally. The command writes to `outputs/`. To save a separate copy, pass `--output-dir path/to/results`. [Software versions and data checksum](docs/REPRODUCIBILITY.md)
 
-To run the tests separately:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-The GitHub Actions workflow runs the same tests and replication script when changes are pushed or a pull request is opened.
-
-## Repository contents
+## Repository structure
 
 ```text
-.
-├── code/                  # Data preparation, estimation, and diagnostics
+├── code/
+│   ├── macro_regression_workflow.py
+│   └── diagnostic_workflow.py
 ├── data/
-│   ├── raw/                # Frozen FRED data snapshot
-│   └── README.md           # Data sources and provenance
-├── docs/                   # Methodology and reproducibility notes
+│   ├── raw/fred_snapshot.csv
+│   └── README.md
+├── docs/
+│   ├── METHODOLOGY.md
+│   └── REPRODUCIBILITY.md
 ├── outputs/
-│   ├── diagnostics/        # Model summaries and reproducibility manifest
-│   ├── figures/            # Generated figures
-│   └── tables/             # Regression and diagnostic results
-├── replication/
-│   └── run_all.py          # Main replication entry point
-├── scripts/                # Optional data-download utility
-├── tests/                  # Unit tests
+│   ├── diagnostics/
+│   ├── figures/
+│   └── tables/
+├── replication/run_all.py
+├── scripts/download_fred_snapshot.py
+├── tests/test_workflow.py
 ├── requirements.txt
-└── README.md
+└── LICENSE
 ```
-
-## Outputs
-
-The main outputs are saved under `outputs/`:
-
-- `tables/` contains descriptive statistics, correlations, regression estimates, fitted values, missing-data information, and diagnostic results.
-- `figures/` contains the time-series plots, fitted-versus-actual plot, and partial-regression plot.
-- `diagnostics/` contains model summaries and a JSON manifest recording the input hash, sample information, and package versions.
-
-## Limitations
-
-The levels regression is a descriptive benchmark. The diagnostics show substantial residual autocorrelation and heteroskedasticity, while the stationarity tests raise concerns about the time-series properties of the variables. Its coefficients should therefore not be read as stable long-run effects.
-
-The supplementary change specification is exploratory. It does not identify exogenous monetary-policy shocks, and none of the reported regressions establishes causality. A more complete empirical study would need a theory-motivated dynamic specification and a defensible identification strategy.
-
-FRED may revise historical observations. For that reason, the default workflow uses the included data snapshot. The optional download script creates a separate file rather than overwriting the snapshot used for the committed results.
-
 
 ## Author
 
 Aliye Nezhad
 
-
 ## License
 
-The code is released under the MIT License. See `LICENSE`.
+The code is available under the [MIT License](LICENSE).

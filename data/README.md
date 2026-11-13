@@ -1,28 +1,17 @@
 # Data
 
-The analysis uses three monthly series from the Federal Reserve Bank of St. Louis's FRED database:
-
-- `INDPRO`: Industrial Production: Total Index (2017 = 100, seasonally adjusted).
-- `FEDFUNDS`: Effective Federal Funds Rate (percent, not seasonally adjusted).
-- `UNRATE`: Civilian Unemployment Rate (percent, seasonally adjusted).
-
-The CSV snapshot is stored at `raw/fred_snapshot.csv`. It is a static FRED export provided with the project; the original retrieval timestamp is not embedded in the file. The main replication uses this saved file and does not download updated observations.
+The saved FRED export contains monthly observations for industrial production, the effective federal funds rate, and civilian unemployment. The file has no download timestamp. FRED can revise past observations, so a new download can differ from the file used here. The download script saves a separate CSV by default. [Saved CSV](raw/fred_snapshot.csv) · [Download script](../scripts/download_fred_snapshot.py) · [INDPRO](https://fred.stlouisfed.org/series/INDPRO) · [FEDFUNDS](https://fred.stlouisfed.org/series/FEDFUNDS) · [UNRATE](https://fred.stlouisfed.org/series/UNRATE)
 
 ## Sample and missing observations
 
-The analysis window is January 1990–October 2026, with 442 monthly rows. Four months contain at least one missing series:
+The CSV has 442 monthly rows from January 1990 through October 2026. Unemployment is missing in October 2025. Industrial production is missing in August, September, and October 2026.
 
-- October 2025: `UNRATE` is missing.
-- August, September, and October 2026: `INDPRO` is missing.
+The baseline regression uses 438 complete observations through July 2026. The time-series tests use January 1990 through September 2025, the longest stretch of consecutive months with all three series (429 observations). The later stretch, November 2025 through July 2026, has nine complete months. [Missing months](../outputs/tables/missing_data_report.csv)
 
-The baseline regression uses 438 complete observations, from January 1990 through July 2026. The longest uninterrupted complete segment is January 1990–September 2025 (429 observations). The later segment, November 2025–July 2026, contains nine observations and is not used for the monthly time-series diagnostics.
-
-## File integrity
-
-SHA-256:
+## File checksum
 
 ```text
 95858e9ef24985d4a55bc698739da272882986a7d75a80396d96d2e16b1f53e4
 ```
 
-The same hash is written to `outputs/diagnostics/reproducibility_manifest.json` whenever the replication script runs. If the data file changes, the hash in the manifest will change as well.
+The [run record](../outputs/diagnostics/reproducibility_manifest.json) includes the SHA-256 checksum for the file used in the analysis.

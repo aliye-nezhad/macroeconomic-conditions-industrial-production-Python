@@ -3,8 +3,8 @@
 Dep. Variable:                 INDPRO   R-squared:                       0.574
 Model:                            OLS   Adj. R-squared:                  0.572
 Method:                 Least Squares   F-statistic:                     29.97
-Date: [omitted for deterministic output]
-Time: [omitted for deterministic output]
+                                        Prob (F-statistic):           6.62e-13
+                                        Log-Likelihood:                -1522.1
 No. Observations:                 429   AIC:                             3050.
 Df Residuals:                     426   BIC:                             3062.
 Df Model:                           2                                         
