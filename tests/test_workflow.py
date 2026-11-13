@@ -16,9 +16,12 @@ from macro_regression_workflow import (  # noqa: E402
     DataValidationError,
     coefficient_table,
     contiguous_complete_segments,
+    estimate_baseline_model,
     load_snapshot,
     longest_contiguous_segment,
     prepare_monthly_data,
+    sha256_file,
+    stable_summary_text,
 )
 from diagnostic_workflow import build_change_dataset, run_cointegration_tests  # noqa: E402
 import statsmodels.formula.api as smf  # noqa: E402
@@ -98,9 +101,36 @@ class DataContractTests(unittest.TestCase):
     def test_bundled_snapshot_loads_and_has_regular_monthly_index(self) -> None:
         snapshot = ROOT / "data/raw/fred_snapshot.csv"
         loaded = load_snapshot(snapshot)
-        self.assertGreater(len(loaded.dropna()), 400)
+        self.assertEqual(len(loaded), 442)
+        self.assertEqual(len(loaded.dropna()), 438)
         self.assertTrue(loaded.index.is_monotonic_increasing)
         self.assertFalse(loaded.index.has_duplicates)
+        self.assertEqual(loaded.index[0], pd.Timestamp("1990-01-01"))
+        self.assertEqual(loaded.index[-1], pd.Timestamp("2026-10-01"))
+
+    def test_bundled_snapshot_matches_checksum_and_documented_results(self) -> None:
+        snapshot = ROOT / "data/raw/fred_snapshot.csv"
+        expected_hash = (ROOT / "data/raw.sha256").read_text(encoding="utf-8").split()[0]
+        self.assertEqual(sha256_file(snapshot), expected_hash)
+
+        loaded = load_snapshot(snapshot)
+        segments = contiguous_complete_segments(loaded)
+        self.assertEqual([len(segment) for segment in segments], [429, 9])
+
+        baseline = estimate_baseline_model(loaded)
+        self.assertEqual(int(baseline.nobs), 438)
+        self.assertAlmostEqual(float(baseline.rsquared), 0.5721, places=4)
+
+    def test_stable_summary_removes_runtime_fields_but_preserves_statistics(self) -> None:
+        summary = (
+            "Date: Fri Nov 13 2026   Prob (F-statistic): 1.23e-45\n"
+            "Time: 05:19:56   Log-Likelihood: -123.456\n"
+        )
+        stable = stable_summary_text(summary)
+        self.assertNotIn("Fri Nov 13 2026", stable)
+        self.assertNotIn("05:19:56", stable)
+        self.assertIn("Prob (F-statistic): 1.23e-45", stable)
+        self.assertIn("Log-Likelihood: -123.456", stable)
 
 
 if __name__ == "__main__":

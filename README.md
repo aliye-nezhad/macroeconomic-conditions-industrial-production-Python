@@ -10,11 +10,11 @@ How do the federal funds rate and unemployment move with U.S. industrial product
 | [`FEDFUNDS`](https://fred.stlouisfed.org/series/FEDFUNDS) | Effective federal funds rate | Percent, not seasonally adjusted |
 | [`UNRATE`](https://fred.stlouisfed.org/series/UNRATE) | Civilian unemployment rate | Percent, seasonally adjusted |
 
-The [saved FRED data](data/raw/fred_snapshot.csv) cover January 1990 through October 2026. Four of the 442 months are missing at least one series. The levels regression uses all 438 complete observations. The time-series tests use the longest stretch of consecutive complete months, January 1990 through September 2025 (429 observations). On that sample, a one-month lag always refers to the preceding calendar month. [Data notes](data/README.md)
+The saved [FRED snapshot](data/raw/fred_snapshot.csv) covers January 1990 through October 2026. Four of the 442 months have at least one missing series. The levels regression uses all 438 complete observations. The time-series diagnostics use the longest uninterrupted stretch of complete months, January 1990 through September 2025 (429 observations). The later complete segment contains nine observations. The snapshot's expected SHA-256 digest is stored in [data/raw.sha256](data/raw.sha256). See the [data notes](data/README.md).
 
 ## Levels regression
 
-I regress the industrial production index on the federal funds and unemployment rates by OLS. Both coefficients are negative in the full sample. On the consecutive-month sample, the residual Durbin–Watson statistic is 0.06, and Newey–West standard errors with 12 lags are larger than HC1 standard errors for both slopes. The residual tests also indicate heteroskedasticity and departures from linearity. I use the levels regression as a descriptive benchmark. [Baseline estimates](outputs/tables/baseline_coefficients.csv) · [Standard-error comparison](outputs/tables/inference_comparison.csv) · [Residual tests](outputs/tables/diagnostic_tests.csv)
+I regress the industrial production index on the federal funds and unemployment rates by OLS. Both coefficients are negative in the full sample, and the baseline (R^2) is 0.5721. On the consecutive-month sample, the residual Durbin–Watson statistic is 0.06, and Newey–West standard errors with 12 lags are larger than HC1 standard errors for both slopes. The residual tests also indicate heteroskedasticity and departures from linearity. I use the levels regression as a descriptive benchmark, not as a causal specification. [Baseline estimates](outputs/tables/baseline_coefficients.csv) · [Standard-error comparison](outputs/tables/inference_comparison.csv) · [Residual tests](outputs/tables/diagnostic_tests.csv)
 
 I read the ADF and KPSS results together. They are consistent with a unit root in industrial production and stationarity in unemployment. The two tests give conflicting results for the federal funds rate. The standard Engle–Granger test assumes the three series are integrated of order one. Given the mixed evidence, I leave the test out. [Stationarity tests](outputs/tables/stationarity_tests.csv) · [Methods](docs/METHODOLOGY.md)
 
@@ -24,7 +24,7 @@ I regress monthly industrial production growth (`100 × Δlog(INDPRO)`) on curre
 
 ## Run the analysis
 
-Python 3.13.15 was used for the results in this repository. From the repository root, create and activate a virtual environment.
+The reference environment is Python 3.13.15. Package versions are pinned in `requirements.txt`. From the repository root, create and activate a virtual environment.
 
 **macOS or Linux**
 
@@ -47,21 +47,34 @@ py -3.13 -m venv .venv
 source .venv/Scripts/activate
 ```
 
+Install the pinned dependencies and verify the bundled input before running the analysis:
+
 ```bash
 python -m pip install -r requirements.txt
+sha256sum --check data/raw.sha256
 python replication/run_all.py
 ```
 
-After package installation, the analysis reads the included CSV locally. The command writes to `outputs/`. To save a separate copy, pass `--output-dir path/to/results`. [Software versions and data checksum](docs/REPRODUCIBILITY.md)
+On Windows PowerShell, compare the output of `Get-FileHash .\data\raw\fred_snapshot.csv -Algorithm SHA256` with the digest in `data/raw.sha256`. The runner executes nine unit tests, loads the bundled snapshot once, estimates the baseline and supplementary specifications, writes the tables and figures, and validates all 20 expected outputs. The run record includes the input hash, sample information, and package versions. To write results to another directory, pass `--output-dir path/to/results`. [Reproducibility guide](docs/REPRODUCIBILITY.md) · [Output inventory](outputs/README.md)
+
+The default analysis is offline after package installation. It does not request live FRED observations or require an API key. The optional downloader is separate and writes a new file rather than replacing the committed snapshot; see the [data and reproduction notes](docs/REPRODUCIBILITY.md#optional-fred-download).
+
+## Automated reproduction
+
+GitHub Actions checks the frozen input checksum, installs the pinned Python environment, runs the unit tests and complete analysis, and checks that the regenerated files match the committed outputs. This verifies the computational workflow on a clean runner rather than merely checking that the source files exist.
 
 ## Repository structure
 
 ```text
+├── .github/workflows/replication.yml
+├── .gitattributes
+├── .python-version
 ├── code/
 │   ├── macro_regression_workflow.py
 │   └── diagnostic_workflow.py
 ├── data/
 │   ├── raw/fred_snapshot.csv
+│   ├── raw.sha256
 │   └── README.md
 ├── docs/
 │   ├── METHODOLOGY.md
@@ -69,11 +82,13 @@ After package installation, the analysis reads the included CSV locally. The com
 ├── outputs/
 │   ├── diagnostics/
 │   ├── figures/
-│   └── tables/
+│   ├── tables/
+│   └── README.md
 ├── replication/run_all.py
 ├── scripts/download_fred_snapshot.py
 ├── tests/test_workflow.py
 ├── requirements.txt
+├── requirements-fred-download.txt
 └── LICENSE
 ```
 
