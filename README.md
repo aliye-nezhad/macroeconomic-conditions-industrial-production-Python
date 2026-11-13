@@ -61,7 +61,7 @@ The default analysis is offline after package installation. It does not request 
 
 ## Automated reproduction
 
-GitHub Actions checks the frozen input checksum, installs the pinned Python environment, runs the unit tests and complete analysis, and checks that the regenerated files match the committed outputs. This verifies the computational workflow on a clean runner rather than merely checking that the source files exist.
+GitHub Actions checks the frozen input checksum, installs the pinned Python environment, runs the unit tests and complete analysis, and compares all 20 regenerated outputs with the committed reference files. Numeric CSV values are compared within tight floating-point tolerances, figures are compared by decoded pixel values, and text and JSON files are compared exactly. This verifies the computational workflow on a clean runner without treating harmless last-decimal floating-point variation as a failed replication.
 
 ## Repository structure
 
@@ -84,7 +84,9 @@ GitHub Actions checks the frozen input checksum, installs the pinned Python envi
 │   ├── figures/
 │   ├── tables/
 │   └── README.md
-├── replication/run_all.py
+├── replication/
+│   ├── compare_outputs.py
+│   └── run_all.py
 ├── scripts/download_fred_snapshot.py
 ├── tests/test_workflow.py
 ├── requirements.txt

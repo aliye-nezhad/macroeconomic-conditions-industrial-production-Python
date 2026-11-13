@@ -85,9 +85,11 @@ On pushes to `main` and pull requests targeting `main`, GitHub Actions:
 3. verifies the frozen CSV against `data/raw.sha256`;
 4. installs the pinned dependencies;
 5. runs the unit tests and the complete replication workflow;
-6. checks that the regenerated files under `outputs/` match the committed reference outputs.
+6. compares all 20 generated files with the committed reference outputs.
 
-The workflow therefore executes the analysis; it is not a static file-presence check. A successful run demonstrates that the committed code, fixed input, and pinned environment regenerate the committed outputs on the CI runner.
+The comparison uses tight numerical tolerances for numeric CSV columns, pixel-level comparison for figures, and exact comparison for text and JSON files. This accommodates harmless floating-point and image-encoding variation while still detecting changes to the sample, model results, output structure, or substantive content.
+
+The workflow therefore executes the analysis; it is not a static file-presence check. A successful run demonstrates that the committed code, fixed input, and pinned environment regenerate results consistent with the committed references on the CI runner.
 
 ## Generated outputs
 
