@@ -1,6 +1,6 @@
 # Macroeconomic Conditions and Industrial Production
 
-How do the federal funds rate and unemployment move with U.S. industrial production? I compare a regression in levels with a model of monthly changes using data from the Federal Reserve Bank of St. Louis.
+This project examines how U.S. industrial production moves with the effective federal funds rate and the unemployment rate. The analysis compares a descriptive regression in levels with a supplementary model of monthly changes, using monthly data from the Federal Reserve Bank of St. Louis (FRED).
 
 ## Data
 
@@ -10,21 +10,31 @@ How do the federal funds rate and unemployment move with U.S. industrial product
 | [`FEDFUNDS`](https://fred.stlouisfed.org/series/FEDFUNDS) | Effective federal funds rate | Percent, not seasonally adjusted |
 | [`UNRATE`](https://fred.stlouisfed.org/series/UNRATE) | Civilian unemployment rate | Percent, seasonally adjusted |
 
-The saved [FRED snapshot](data/raw/fred_snapshot.csv) covers January 1990 through October 2026. Four of the 442 months have at least one missing series. The levels regression uses all 438 complete observations. The time-series diagnostics use the longest uninterrupted stretch of complete months, January 1990 through September 2025 (429 observations). The later complete segment contains nine observations. The snapshot's expected SHA-256 digest is stored in [data/raw.sha256](data/raw.sha256). See the [data notes](data/README.md).
+The committed snapshot covers January 1990 through October 2026 (442 monthly observations). Four months contain at least one missing series. The baseline regression uses 438 complete observations. Time-series diagnostics use the longest uninterrupted complete segment, January 1990 through September 2025 (429 observations); the later segment contains nine observations. The snapshot's SHA-256 digest is recorded in [data/raw.sha256](data/raw.sha256). Additional details are in [data/README.md](data/README.md).
 
-## Levels regression
+## Levels specification
 
-I regress the industrial production index on the federal funds and unemployment rates by OLS. Both coefficients are negative in the full sample, and the baseline (R^2) is 0.5721. On the consecutive-month sample, the residual Durbin–Watson statistic is 0.06, and Newey–West standard errors with 12 lags are larger than HC1 standard errors for both slopes. The residual tests also indicate heteroskedasticity and departures from linearity. I use the levels regression as a descriptive benchmark, not as a causal specification. [Baseline estimates](outputs/tables/baseline_coefficients.csv) · [Standard-error comparison](outputs/tables/inference_comparison.csv) · [Residual tests](outputs/tables/diagnostic_tests.csv)
+The baseline OLS regression relates the industrial production index to the federal funds rate and unemployment rate. Both slope coefficients are negative in the full sample, and the model's (R^2) is 0.5721. In the uninterrupted 429-month sample, the residual Durbin–Watson statistic is 0.06. The residual tests also indicate heteroskedasticity and departures from linearity. Newey–West standard errors with 12 lags are reported alongside HC1 estimates for the uninterrupted sample. The levels regression is descriptive; its coefficients should not be interpreted as causal effects.
 
-I read the ADF and KPSS results together. They are consistent with a unit root in industrial production and stationarity in unemployment. The two tests give conflicting results for the federal funds rate. The standard Engle–Granger test assumes the three series are integrated of order one. Given the mixed evidence, I leave the test out. [Stationarity tests](outputs/tables/stationarity_tests.csv) · [Methods](docs/METHODOLOGY.md)
+[Baseline coefficients](outputs/tables/baseline_coefficients.csv) · [Inference comparison](outputs/tables/inference_comparison.csv) · [Residual diagnostics](outputs/tables/diagnostic_tests.csv)
 
-## Monthly changes
+## Stationarity and cointegration
 
-I regress monthly industrial production growth (`100 × Δlog(INDPRO)`) on current and one-month-lagged changes in the two rates. Differencing and lagging leave 427 observations. A one-percentage-point rise in unemployment is associated with industrial production growth 1.37 percentage points lower in the same month, holding the other regressors fixed. The 95% Newey–West confidence intervals for both federal funds rate coefficients include zero. Estimating a causal effect would require isolating exogenous changes in the policy rate. [Monthly-change estimates](outputs/tables/changes_model_coefficients_hac12.csv)
+The ADF and KPSS tests provide evidence consistent with a unit root in industrial production and stationarity in unemployment. Their results for the federal funds rate conflict. Since the standard Engle–Granger procedure assumes that all variables in the proposed long-run relationship are integrated of order one, the cointegration test is not reported.
 
-## Run the analysis
+[Stationarity tests](outputs/tables/stationarity_tests.csv) · [Cointegration decision](outputs/tables/cointegration_test_decision.csv) · [Methodology](docs/METHODOLOGY.md)
 
-The reference environment is Python 3.13.15. Package versions are pinned in `requirements.txt`. From the repository root, create and activate a virtual environment.
+## Monthly-change specification
+
+The supplementary model regresses monthly industrial production growth (`100 × Δlog(INDPRO)`) on current and one-month-lagged changes in the two interest-rate variables. Differencing and lagging leave 427 observations. A one-percentage-point increase in unemployment is associated with industrial production growth 1.37 percentage points lower in the same month, conditional on the other regressors. The 95% Newey–West confidence intervals for both federal funds rate coefficients include zero. The estimates describe conditional associations, not causal effects.
+
+[Monthly-change estimates](outputs/tables/changes_model_coefficients_hac12.csv)
+
+## Reproducing the results
+
+The reference environment is Python 3.13.15. Package versions are pinned in `requirements.txt`.
+
+Create and activate a virtual environment from the repository root.
 
 **macOS or Linux**
 
@@ -40,28 +50,28 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-**Windows Git Bash**
-
-```bash
-py -3.13 -m venv .venv
-source .venv/Scripts/activate
-```
-
-Install the pinned dependencies and verify the bundled input before running the analysis:
+Install the dependencies and verify the committed data snapshot:
 
 ```bash
 python -m pip install -r requirements.txt
 sha256sum --check data/raw.sha256
+```
+
+On Windows PowerShell, use `Get-FileHash .\data\raw\fred_snapshot.csv -Algorithm SHA256` and compare the result with the digest in `data/raw.sha256`.
+
+Run the complete analysis:
+
+```bash
 python replication/run_all.py
 ```
 
-On Windows PowerShell, compare the output of `Get-FileHash .\data\raw\fred_snapshot.csv -Algorithm SHA256` with the digest in `data/raw.sha256`. The runner executes ten unit tests, loads the bundled snapshot once, estimates the baseline and supplementary specifications, writes the tables and figures, and validates all 20 expected outputs. The run record includes the input hash, sample information, and package versions. To write results to another directory, pass `--output-dir path/to/results`. [Reproducibility guide](docs/REPRODUCIBILITY.md) · [Output inventory](outputs/README.md)
+The runner executes ten unit tests, estimates both specifications, generates the tables and figures, and validates all 20 expected outputs. The default workflow uses the committed snapshot and runs offline after package installation. To use another CSV or write results to a separate directory, pass `--data` or `--output-dir`, respectively.
 
-The default analysis is offline after package installation. It does not request live FRED observations or require an API key. The optional downloader is separate and writes a new file rather than replacing the committed snapshot; see the [data and reproduction notes](docs/REPRODUCIBILITY.md#optional-fred-download).
+See the [reproducibility guide](docs/REPRODUCIBILITY.md) for the full procedure and the [output inventory](outputs/README.md) for the generated files. An optional FRED downloader is provided separately; it saves a new snapshot and does not replace the committed input.
 
-## Automated reproduction
+## Automated checks
 
-GitHub Actions checks the frozen input checksum, installs the pinned Python environment, runs the unit tests and complete analysis, and compares all 20 regenerated outputs with the committed reference files. Numeric CSV values are compared within tight floating-point tolerances, figures are compared by decoded pixel values, and text and JSON files are compared exactly. This verifies the computational workflow on a clean runner without treating harmless last-decimal floating-point variation as a failed replication.
+GitHub Actions verifies the snapshot checksum, installs the pinned environment, runs the tests and replication workflow, and compares all 20 regenerated outputs with the committed results. Numeric CSV values are compared within tight floating-point tolerances, figures by decoded pixel values, and text and JSON files exactly.
 
 ## Repository structure
 
