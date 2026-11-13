@@ -69,7 +69,7 @@ The runner executes ten unit tests, estimates both specifications, generates the
 
 See the [reproducibility guide](docs/REPRODUCIBILITY.md) for the full procedure and the [output inventory](outputs/README.md) for the generated files. An optional FRED downloader is provided separately; it saves a new snapshot and does not replace the committed input.
 
-## Automated checks
+## Continuous integration
 
 GitHub Actions verifies the snapshot checksum, installs the pinned environment, runs the tests and replication workflow, and compares all 20 regenerated outputs with the committed results. Numeric CSV values are compared within tight floating-point tolerances, figures by decoded pixel values, and text and JSON files exactly.
 
