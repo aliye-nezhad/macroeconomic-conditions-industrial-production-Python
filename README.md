@@ -10,11 +10,11 @@ This project examines how U.S. industrial production moves with the effective fe
 | [`FEDFUNDS`](https://fred.stlouisfed.org/series/FEDFUNDS) | Effective federal funds rate | Percent, not seasonally adjusted |
 | [`UNRATE`](https://fred.stlouisfed.org/series/UNRATE) | Civilian unemployment rate | Percent, seasonally adjusted |
 
-The committed snapshot covers January 1990 through October 2026 (442 monthly observations). Four months contain at least one missing series. The baseline regression uses 438 complete observations. Time-series diagnostics use the longest uninterrupted complete segment, January 1990 through September 2025 (429 observations); the later segment contains nine observations. The snapshot's SHA-256 digest is recorded in [data/raw.sha256](data/raw.sha256). Additional details are in [data/README.md](data/README.md).
+The committed snapshot covers January 1990 through October 2026 (442 monthly observations). Four months have at least one missing observation. The baseline regression uses 438 complete observations. Time-series diagnostics use the longest uninterrupted complete segment, January 1990 through September 2025 (429 observations); the later segment contains nine observations. The snapshot's SHA-256 digest is recorded in [data/raw.sha256](data/raw.sha256). Additional details are in [data/README.md](data/README.md).
 
 ## Levels specification
 
-The baseline OLS regression relates the industrial production index to the federal funds rate and unemployment rate. Both slope coefficients are negative in the full sample, and the model's (R^2) is 0.5721. In the uninterrupted 429-month sample, the residual Durbin–Watson statistic is 0.06. The residual tests also indicate heteroskedasticity and departures from linearity. Newey–West standard errors with 12 lags are reported alongside HC1 estimates for the uninterrupted sample. The levels regression is descriptive; its coefficients should not be interpreted as causal effects.
+The baseline OLS regression relates the industrial production index to the federal funds rate and unemployment rate. Both slope coefficients are negative in the full sample, and the model's $R^2$ is 0.5721. In the uninterrupted 429-month sample, the residual Durbin–Watson statistic is 0.06. The residual tests also indicate heteroskedasticity and departures from linearity. Newey–West standard errors with 12 lags are reported alongside HC1 estimates for the uninterrupted sample. The levels regression is descriptive; its coefficients should not be interpreted as causal effects.
 
 [Baseline coefficients](outputs/tables/baseline_coefficients.csv) · [Inference comparison](outputs/tables/inference_comparison.csv) · [Residual diagnostics](outputs/tables/diagnostic_tests.csv)
 
