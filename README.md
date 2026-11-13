@@ -55,7 +55,7 @@ sha256sum --check data/raw.sha256
 python replication/run_all.py
 ```
 
-On Windows PowerShell, compare the output of `Get-FileHash .\data\raw\fred_snapshot.csv -Algorithm SHA256` with the digest in `data/raw.sha256`. The runner executes nine unit tests, loads the bundled snapshot once, estimates the baseline and supplementary specifications, writes the tables and figures, and validates all 20 expected outputs. The run record includes the input hash, sample information, and package versions. To write results to another directory, pass `--output-dir path/to/results`. [Reproducibility guide](docs/REPRODUCIBILITY.md) · [Output inventory](outputs/README.md)
+On Windows PowerShell, compare the output of `Get-FileHash .\data\raw\fred_snapshot.csv -Algorithm SHA256` with the digest in `data/raw.sha256`. The runner executes ten unit tests, loads the bundled snapshot once, estimates the baseline and supplementary specifications, writes the tables and figures, and validates all 20 expected outputs. The run record includes the input hash, sample information, and package versions. To write results to another directory, pass `--output-dir path/to/results`. [Reproducibility guide](docs/REPRODUCIBILITY.md) · [Output inventory](outputs/README.md)
 
 The default analysis is offline after package installation. It does not request live FRED observations or require an API key. The optional downloader is separate and writes a new file rather than replacing the committed snapshot; see the [data and reproduction notes](docs/REPRODUCIBILITY.md#optional-fred-download).
 

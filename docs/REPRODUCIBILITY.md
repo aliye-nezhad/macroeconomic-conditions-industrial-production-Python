@@ -49,7 +49,7 @@ From the repository root, run:
 python replication/run_all.py
 ```
 
-The runner executes the nine unit tests, loads the fixed CSV snapshot once, estimates the levels regression, performs the time-series diagnostics and supplementary monthly-change model, writes the results, and validates all 20 expected output files. The output validator checks file presence and non-empty content, fitted-value fields, the manifest's input hash and sample size, the cointegration decision, and the baseline coefficient table.
+The runner executes the ten unit tests, loads the fixed CSV snapshot once, estimates the levels regression, performs the time-series diagnostics and supplementary monthly-change model, writes the results, and validates all 20 expected output files. The output validator checks file presence and non-empty content, fitted-value fields, the manifest's input hash and sample size, the cointegration decision, and the baseline coefficient table.
 
 The default output directory is `outputs/`. To preserve the committed reference outputs while writing a separate run, use:
 
