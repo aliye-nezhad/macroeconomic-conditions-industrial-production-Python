@@ -76,32 +76,58 @@ GitHub Actions verifies the snapshot checksum, installs the pinned environment, 
 ## Repository structure
 
 ```text
-├── .github/workflows/replication.yml
-├── .gitattributes
-├── .python-version
+├── docs/
+│   ├── METHODOLOGY.md
+│   └── REPRODUCIBILITY.md
+├── .github/workflows/
+│   └── replication.yml
 ├── code/
 │   ├── macro_regression_workflow.py
 │   └── diagnostic_workflow.py
 ├── data/
-│   ├── raw/fred_snapshot.csv
+│   ├── raw/
+│   │   └── fred_snapshot.csv
 │   ├── raw.sha256
 │   └── README.md
-├── docs/
-│   ├── METHODOLOGY.md
-│   └── REPRODUCIBILITY.md
+├── replication/
+│   ├── run_all.py
+│   └── compare_outputs.py
+├── scripts/
+│   └── download_fred_snapshot.py
+├── tests/
+│   └── test_workflow.py
 ├── outputs/
 │   ├── diagnostics/
+│   │   ├── changes_model_hac12_summary.txt
+│   │   ├── contiguous_levels_hac12_summary.txt
+│   │   └── reproducibility_manifest.json
 │   ├── figures/
+│   │   ├── actual_vs_fitted.png
+│   │   ├── macro_series.png
+│   │   └── partial_regression_fedfunds.png
 │   ├── tables/
+│   │   ├── baseline_coefficients.csv
+│   │   ├── baseline_regression_summary.txt
+│   │   ├── changes_model_coefficients_hac12.csv
+│   │   ├── cointegration_test_decision.csv
+│   │   ├── complete_monthly_segments.csv
+│   │   ├── correlation_matrix.csv
+│   │   ├── descriptive_statistics.csv
+│   │   ├── diagnostic_tests.csv
+│   │   ├── fitted_values.csv
+│   │   ├── inference_comparison.csv
+│   │   ├── ljung_box_tests.csv
+│   │   ├── missing_data_report.csv
+│   │   ├── stationarity_tests.csv
+│   │   └── variance_inflation_factors.csv
 │   └── README.md
-├── replication/
-│   ├── compare_outputs.py
-│   └── run_all.py
-├── scripts/download_fred_snapshot.py
-├── tests/test_workflow.py
-├── requirements.txt
+├── .gitattributes
+├── .gitignore
+├── .python-version
 ├── requirements-fred-download.txt
-└── LICENSE
+├── requirements.txt
+├── LICENSE
+└── README.md
 ```
 
 ## Author
